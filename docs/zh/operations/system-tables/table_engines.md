@@ -3,7 +3,7 @@ machine_translated: true
 machine_translated_rev: 5decc73b5dc60054f19087d3690c4eb99446a6c3
 ---
 
-# 系统。表_engines {#system-table-engines}
+# system.table_engines {#system-table-engines}
 
 包含服务器支持的表引擎的描述及其功能支持信息。
 
@@ -35,6 +35,6 @@ WHERE name in ('Kafka', 'MergeTree', 'ReplicatedCollapsingMergeTree')
 
 **另请参阅**
 
--   梅树家族 [查询子句](../../engines/table-engines/mergetree-family/mergetree.md#mergetree-query-clauses)
--   卡夫卡 [设置](../../engines/table-engines/integrations/kafka.md#table_engine-kafka-creating-a-table)
--   加入我们 [设置](../../engines/table-engines/special/join.md#join-limitations-and-settings)
+-   MergeTree family [查询子句](../../engines/table-engines/mergetree-family/mergetree.md#mergetree-query-clauses)
+-   Kafka [设置](../../engines/table-engines/integrations/kafka.md#table_engine-kafka-creating-a-table)
+-   Join [设置](../../engines/table-engines/special/join.md#join-limitations-and-settings)
