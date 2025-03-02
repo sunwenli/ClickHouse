@@ -1,5 +1,5 @@
 #include <Access/SettingsProfilesCache.h>
-#include <Access/AccessControlManager.h>
+#include <Access/AccessControl.h>
 #include <Access/SettingsProfile.h>
 #include <Access/SettingsProfilesInfo.h>
 #include <Common/quoteString.h>
@@ -12,8 +12,8 @@ namespace ErrorCodes
     extern const int THERE_IS_NO_PROFILE;
 }
 
-SettingsProfilesCache::SettingsProfilesCache(const AccessControlManager & manager_)
-    : manager(manager_) {}
+SettingsProfilesCache::SettingsProfilesCache(const AccessControl & access_control_)
+    : access_control(access_control_) {}
 
 SettingsProfilesCache::~SettingsProfilesCache() = default;
 
@@ -25,7 +25,7 @@ void SettingsProfilesCache::ensureAllProfilesRead()
         return;
     all_profiles_read = true;
 
-    subscription = manager.subscribeForChanges<SettingsProfile>(
+    subscription = access_control.subscribeForChanges<SettingsProfile>(
         [&](const UUID & id, const AccessEntityPtr & entity)
         {
             if (entity)
@@ -34,9 +34,9 @@ void SettingsProfilesCache::ensureAllProfilesRead()
                 profileRemoved(id);
         });
 
-    for (const UUID & id : manager.findAll<SettingsProfile>())
+    for (const UUID & id : access_control.findAll<SettingsProfile>())
     {
-        auto profile = manager.tryRead<SettingsProfile>(id);
+        auto profile = access_control.tryRead<SettingsProfile>(id);
         if (profile)
         {
             all_profiles.emplace(id, profile);
@@ -94,7 +94,7 @@ void SettingsProfilesCache::setDefaultProfileName(const String & default_profile
 
     auto it = profiles_by_name.find(default_profile_name);
     if (it == profiles_by_name.end())
-        throw Exception("Settings profile " + backQuote(default_profile_name) + " not found", ErrorCodes::THERE_IS_NO_PROFILE);
+        throw Exception(ErrorCodes::THERE_IS_NO_PROFILE, "Settings profile {} not found", backQuote(default_profile_name));
 
     default_profile_id = it->second;
 }
@@ -135,14 +135,15 @@ void SettingsProfilesCache::mergeSettingsAndConstraintsFor(EnabledSettings & ena
             merged_settings.emplace_back(new_element);
         }
 
-    merged_settings.merge(enabled.params.settings_from_enabled_roles);
-    merged_settings.merge(enabled.params.settings_from_user);
+    merged_settings.merge(enabled.params.settings_from_enabled_roles, /* normalize= */ false);
+    merged_settings.merge(enabled.params.settings_from_user, /* normalize= */ false);
 
-    auto info = std::make_shared<SettingsProfilesInfo>(manager);
-    info->profiles = enabled.params.settings_from_user.toProfileIDs();
-    substituteProfiles(merged_settings, info->profiles_with_implicit, info->names_of_profiles);
+    auto info = std::make_shared<SettingsProfilesInfo>(access_control);
+
+    substituteProfiles(merged_settings, info->profiles, info->profiles_with_implicit, info->names_of_profiles);
+
     info->settings = merged_settings.toSettingsChanges();
-    info->constraints = merged_settings.toSettingsConstraints(manager);
+    info->constraints = merged_settings.toSettingsConstraints(access_control);
 
     enabled.setInfo(std::move(info));
 }
@@ -150,9 +151,12 @@ void SettingsProfilesCache::mergeSettingsAndConstraintsFor(EnabledSettings & ena
 
 void SettingsProfilesCache::substituteProfiles(
     SettingsProfileElements & elements,
+    std::vector<UUID> & profiles,
     std::vector<UUID> & substituted_profiles,
     std::unordered_map<UUID, String> & names_of_substituted_profiles) const
 {
+    profiles = elements.toProfileIDs();
+
     /// We should substitute profiles in reversive order because the same profile can occur
     /// in `elements` multiple times (with some other settings in between) and in this case
     /// the last occurrence should override all the previous ones.
@@ -182,6 +186,11 @@ void SettingsProfilesCache::substituteProfiles(
         names_of_substituted_profiles.emplace(profile_id, profile->getName());
     }
     std::reverse(substituted_profiles.begin(), substituted_profiles.end());
+
+    std::erase_if(profiles, [&substituted_profiles_set](const UUID & profile_id)
+    {
+        return !substituted_profiles_set.contains(profile_id);
+    });
 }
 
 std::shared_ptr<const EnabledSettings> SettingsProfilesCache::getEnabledSettings(
@@ -223,15 +232,15 @@ std::shared_ptr<const SettingsProfilesInfo> SettingsProfilesCache::getSettingsPr
     if (auto pos = this->profile_infos_cache.get(profile_id))
         return *pos;
 
-    SettingsProfileElements elements = all_profiles[profile_id]->elements;
+    SettingsProfileElements elements;
+    auto & element = elements.emplace_back();
+    element.parent_profile = profile_id;
 
-    auto info = std::make_shared<SettingsProfilesInfo>(manager);
+    auto info = std::make_shared<SettingsProfilesInfo>(access_control);
 
-    info->profiles.push_back(profile_id);
-    info->profiles_with_implicit.push_back(profile_id);
-    substituteProfiles(elements, info->profiles_with_implicit, info->names_of_profiles);
+    substituteProfiles(elements, info->profiles, info->profiles_with_implicit, info->names_of_profiles);
     info->settings = elements.toSettingsChanges();
-    info->constraints.merge(elements.toSettingsConstraints(manager));
+    info->constraints.merge(elements.toSettingsConstraints(access_control));
 
     profile_infos_cache.add(profile_id, info);
     return info;

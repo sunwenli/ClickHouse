@@ -1,16 +1,13 @@
 #pragma once
 
-#if !defined(ARCADIA_BUILD)
-#include "config_core.h"
-#endif
+#include "config.h"
 #include "DictionaryStructure.h"
 #include "IDictionarySource.h"
 
 #if USE_LIBPQXX
 #include "ExternalQueryBuilder.h"
 #include <Core/Block.h>
-#include <base/LocalDateTime.h>
-#include <base/logger_useful.h>
+#include <Common/LocalDateTime.h>
 #include <Core/PostgreSQL/PoolWithFailover.h>
 
 
@@ -43,10 +40,10 @@ public:
     PostgreSQLDictionarySource(const PostgreSQLDictionarySource & other);
     PostgreSQLDictionarySource & operator=(const PostgreSQLDictionarySource &) = delete;
 
-    Pipe loadAll() override;
-    Pipe loadUpdatedAll() override;
-    Pipe loadIds(const std::vector<UInt64> & ids) override;
-    Pipe loadKeys(const Columns & key_columns, const std::vector<size_t> & requested_rows) override;
+    QueryPipeline loadAll() override;
+    QueryPipeline loadUpdatedAll() override;
+    QueryPipeline loadIds(const std::vector<UInt64> & ids) override;
+    QueryPipeline loadKeys(const Columns & key_columns, const std::vector<size_t> & requested_rows) override;
 
     bool isModified() const override;
     bool supportsSelectiveLoad() const override;
@@ -58,13 +55,13 @@ public:
 private:
     String getUpdateFieldAndDate();
     String doInvalidateQuery(const std::string & request) const;
-    Pipe loadBase(const String & query);
+    QueryPipeline loadBase(const String & query);
 
     const DictionaryStructure dict_struct;
     const Configuration configuration;
     postgres::PoolWithFailoverPtr pool;
     Block sample_block;
-    Poco::Logger * log;
+    LoggerPtr log;
     ExternalQueryBuilder query_builder;
     const std::string load_all_query;
     std::chrono::time_point<std::chrono::system_clock> update_time;

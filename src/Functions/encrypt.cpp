@@ -1,11 +1,12 @@
-#if !defined(ARCADIA_BUILD)
-#    include <Common/config.h>
-#endif
+#include "config.h"
 
 #if USE_SSL
 
 #include <Functions/FunctionFactory.h>
 #include <Functions/FunctionsAES.h>
+
+namespace DB
+{
 
 namespace
 {
@@ -18,10 +19,7 @@ struct EncryptImpl
 
 }
 
-namespace DB
-{
-
-void registerFunctionEncrypt(FunctionFactory & factory)
+REGISTER_FUNCTION(Encrypt)
 {
     factory.registerFunction<FunctionEncrypt<EncryptImpl>>();
 }

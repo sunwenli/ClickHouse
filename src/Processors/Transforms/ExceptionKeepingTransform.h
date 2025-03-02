@@ -1,5 +1,6 @@
 #pragma once
 #include <Processors/IProcessor.h>
+#include <Processors/Port.h>
 
 namespace DB
 {
@@ -28,18 +29,31 @@ protected:
     OutputPort & output;
     Port::Data data;
 
+    enum class Stage : uint8_t
+    {
+        Start,
+        Consume,
+        Generate,
+        Finish,
+        Exception,
+    };
+
+    Stage stage = Stage::Start;
     bool ready_input = false;
     bool ready_output = false;
-    bool has_exception = false;
-
     const bool ignore_on_start_and_finish = true;
-    bool was_on_start_called = false;
-    bool was_on_finish_called = false;
 
-//protected:
-    virtual void transform(Chunk & chunk) = 0;
+    struct GenerateResult
+    {
+        Chunk chunk;
+        bool is_done = true;
+    };
+
     virtual void onStart() {}
+    virtual void onConsume(Chunk chunk) = 0;
+    virtual GenerateResult onGenerate() = 0;
     virtual void onFinish() {}
+    virtual void onException(std::exception_ptr /* exception */) { }
 
 public:
     ExceptionKeepingTransform(const Block & in_header, const Block & out_header, bool ignore_on_start_and_finish_ = true);

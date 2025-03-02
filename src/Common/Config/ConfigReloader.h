@@ -17,33 +17,34 @@ namespace Poco { class Logger; }
 namespace DB
 {
 
-class Context;
-
 /** Every two seconds checks configuration files for update.
   * If configuration is changed, then config will be reloaded by ConfigProcessor
   *  and the reloaded config will be applied via Updater functor.
-  * It doesn't take into account changes of --config-file, <users_config> and <include_from> parameters.
+  * It doesn't take into account changes of --config-file and <users_config>.
   */
 class ConfigReloader
 {
 public:
+    static constexpr auto DEFAULT_RELOAD_INTERVAL = std::chrono::milliseconds(2000);
+
     using Updater = std::function<void(ConfigurationPtr, bool)>;
 
-    /** include_from_path is usually /etc/metrika.xml (i.e. value of <include_from> tag)
-      */
     ConfigReloader(
-            const std::string & path,
-            const std::string & include_from_path,
-            const std::string & preprocessed_dir,
-            zkutil::ZooKeeperNodeCache && zk_node_cache,
-            const zkutil::EventPtr & zk_changed_event,
-            Updater && updater,
-            bool already_loaded);
+        std::string_view path_,
+        const std::vector<std::string>& extra_paths_,
+        const std::string & preprocessed_dir,
+        zkutil::ZooKeeperNodeCache && zk_node_cache,
+        const zkutil::EventPtr & zk_changed_event,
+        Updater && updater);
 
     ~ConfigReloader();
 
-    /// Call this method to run the background thread.
+    /// Starts periodic reloading in the background thread.
     void start();
+
+    /// Stops periodic reloading reloading in the background thread.
+    /// This function is automatically called by the destructor.
+    void stop();
 
     /// Reload immediately. For SYSTEM RELOAD CONFIG query.
     void reload() { reloadIfNewer(/* force */ true, /* throw_on_error */ true, /* fallback_to_preprocessed */ false, /* initial_loading = */ false); }
@@ -51,7 +52,7 @@ public:
 private:
     void run();
 
-    void reloadIfNewer(bool force, bool throw_on_error, bool fallback_to_preprocessed, bool initial_loading);
+    std::optional<ConfigProcessor::LoadedConfig> reloadIfNewer(bool force, bool throw_on_error, bool fallback_to_preprocessed, bool initial_loading);
 
     struct FileWithTimestamp;
 
@@ -65,14 +66,11 @@ private:
 
     FilesChangesTracker getNewFileList() const;
 
-private:
+    LoggerPtr log = getLogger("ConfigReloader");
 
-    static constexpr auto reload_interval = std::chrono::seconds(2);
+    std::string config_path;
+    std::vector<std::string> extra_paths;
 
-    Poco::Logger * log = &Poco::Logger::get("ConfigReloader");
-
-    std::string path;
-    std::string include_from_path;
     std::string preprocessed_dir;
     FilesChangesTracker files;
     zkutil::ZooKeeperNodeCache zk_node_cache;
@@ -83,6 +81,8 @@ private:
 
     std::atomic<bool> quit{false};
     ThreadFromGlobalPool thread;
+
+    std::chrono::milliseconds reload_interval = DEFAULT_RELOAD_INTERVAL;
 
     /// Locked inside reloadIfNewer.
     std::mutex reload_mutex;

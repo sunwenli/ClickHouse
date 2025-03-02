@@ -19,11 +19,6 @@
 #include <Common/randomSeed.h>
 #include <Common/formatReadable.h>
 
-/// Required for older Darwin builds, that lack definition of MAP_ANONYMOUS
-#ifndef MAP_ANONYMOUS
-#define MAP_ANONYMOUS MAP_ANON
-#endif
-
 
 namespace DB
 {
@@ -179,16 +174,25 @@ private:
         {
             ptr = mmap(address_hint, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
             if (MAP_FAILED == ptr)
-                DB::throwFromErrno(fmt::format("Allocator: Cannot mmap {}.", ReadableSize(size)), DB::ErrorCodes::CANNOT_ALLOCATE_MEMORY);
+                throw DB::ErrnoException(DB::ErrorCodes::CANNOT_ALLOCATE_MEMORY, "Allocator: Cannot mmap {}", ReadableSize(size));
         }
 
         ~Chunk()
         {
             if (ptr && 0 != munmap(ptr, size))
-                DB::throwFromErrno(fmt::format("Allocator: Cannot munmap {}.", ReadableSize(size)), DB::ErrorCodes::CANNOT_MUNMAP);
+            {
+                try
+                {
+                    throw DB::ErrnoException(DB::ErrorCodes::CANNOT_MUNMAP, "Allocator: Cannot munmap {}", ReadableSize(size));
+                }
+                catch (DB::ErrnoException &)
+                {
+                    DB::tryLogCurrentException(__PRETTY_FUNCTION__);
+                }
+            }
         }
 
-        Chunk(Chunk && other) : ptr(other.ptr), size(other.size)
+        Chunk(Chunk && other) noexcept : ptr(other.ptr), size(other.size)
         {
             other.ptr = nullptr;
         }
@@ -261,7 +265,7 @@ private:
     /// Represents pending insertion attempt.
     struct InsertToken
     {
-        InsertToken(ArrayCache & cache_) : cache(cache_) {}
+        explicit InsertToken(ArrayCache & cache_) : cache(cache_) {}
 
         std::mutex mutex;
         bool cleaned_up = false; /// Protected by the token mutex
@@ -514,8 +518,6 @@ private:
             return allocateFromFreeRegion(*free_region, size);
         }
 
-//        std::cerr << "Requested size: " << size << "\n";
-
         /// Evict something from cache and continue.
         while (true)
         {
@@ -535,7 +537,7 @@ private:
 
 
 public:
-    ArrayCache(size_t max_total_size_) : max_total_size(max_total_size_)
+    explicit ArrayCache(size_t max_total_size_) : max_total_size(max_total_size_)
     {
     }
 
@@ -724,5 +726,3 @@ public:
         return res;
     }
 };
-
-template <typename Key, typename Payload> constexpr size_t ArrayCache<Key, Payload>::min_chunk_size;

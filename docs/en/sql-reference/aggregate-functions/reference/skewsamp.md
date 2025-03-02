@@ -1,8 +1,11 @@
 ---
-toc_priority: 151
+slug: /sql-reference/aggregate-functions/reference/skewsamp
+sidebar_position: 186
+title: "skewSamp"
+description: "Computes the sample skewness of a sequence."
 ---
 
-# skewSamp {#skewsamp}
+# skewSamp
 
 Computes the [sample skewness](https://en.wikipedia.org/wiki/Skewness) of a sequence.
 

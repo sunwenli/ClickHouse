@@ -7,6 +7,7 @@ CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=./replication.lib
 . "$CURDIR"/replication.lib
 
+
 declare -A engines
 engines[0]="MergeTree"
 engines[1]="ReplicatedMergeTree('/test/$CLICKHOUSE_TEST_ZOOKEEPER_PREFIX/{shard}/src', '{replica}_' || toString(randConstant()))"
@@ -106,7 +107,7 @@ export -f drop_partition_thread;
 export -f optimize_thread;
 export -f drop_part_thread;
 
-TIMEOUT=60
+TIMEOUT=40
 
 #timeout $TIMEOUT bash -c "create_drop_thread ${engines[@]}" &
 timeout $TIMEOUT bash -c 'insert_thread src' &
@@ -120,10 +121,13 @@ timeout $TIMEOUT bash -c drop_part_thread &
 wait
 
 check_replication_consistency "dst_" "count(), sum(p), sum(k), sum(v)"
-try_sync_replicas "src_"
+try_sync_replicas "src_" 300
+
+$CLICKHOUSE_CLIENT -q "SELECT table, lost_part_count FROM system.replicas WHERE database=currentDatabase() AND lost_part_count!=0";
 
 for ((i=0; i<16; i++)) do
     $CLICKHOUSE_CLIENT -q "DROP TABLE dst_$i" 2>&1| grep -Fv "is already started to be removing" &
     $CLICKHOUSE_CLIENT -q "DROP TABLE IF EXISTS src_$i" 2>&1| grep -Fv "is already started to be removing" &
 done
+
 wait

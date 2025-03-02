@@ -7,6 +7,9 @@
 #include <array>
 #include <base/types.h>
 #include <base/DayNum.h>
+#include <IO/ReadBuffer.h>
+#include <IO/WriteBuffer.h>
+#include <Parsers/IAST_fwd.h>
 #include <Storages/MergeTree/MergeTreeDataFormatVersion.h>
 
 
@@ -23,7 +26,7 @@ struct MergeTreePartInfo
     UInt32 level = 0;
     Int64 mutation = 0;   /// If the part has been mutated or contains mutated parts, is equal to mutation version number.
 
-    bool use_leagcy_max_level = false;  /// For compatibility. TODO remove it
+    bool use_legacy_max_level = false;  /// For compatibility. TODO remove it
 
     MergeTreePartInfo() = default;
 
@@ -42,6 +45,13 @@ struct MergeTreePartInfo
         return std::forward_as_tuple(partition_id, min_block, max_block, level, mutation)
             < std::forward_as_tuple(rhs.partition_id, rhs.min_block, rhs.max_block, rhs.level, rhs.mutation);
     }
+
+    bool operator>(const MergeTreePartInfo & rhs) const
+    {
+        return std::forward_as_tuple(partition_id, min_block, max_block, level, mutation)
+            > std::forward_as_tuple(rhs.partition_id, rhs.min_block, rhs.max_block, rhs.level, rhs.mutation);
+    }
+
 
     bool operator==(const MergeTreePartInfo & rhs) const
     {
@@ -72,10 +82,20 @@ struct MergeTreePartInfo
             && strictly_contains_block_range;
     }
 
+    /// Part was created with mutation of parent_candidate part
+    bool isMutationChildOf(const MergeTreePartInfo & parent_candidate) const
+    {
+        return partition_id == parent_candidate.partition_id
+            && min_block == parent_candidate.min_block
+            && max_block == parent_candidate.max_block
+            && level == parent_candidate.level
+            && mutation >= parent_candidate.mutation;
+    }
+
     /// Return part mutation version, if part wasn't mutated return zero
     Int64 getMutationVersion() const
     {
-        return mutation ? mutation : 0;
+        return mutation;
     }
 
     /// True if parts do not intersect in any way.
@@ -88,22 +108,27 @@ struct MergeTreePartInfo
 
     bool isFakeDropRangePart() const
     {
-        /// Another max level was previously used for REPLACE/MOVE PARTITION
-        auto another_max_level = std::numeric_limits<decltype(level)>::max();
-        return level == MergeTreePartInfo::MAX_LEVEL || level == another_max_level;
+        /// LEGACY_MAX_LEVEL was previously used for REPLACE/MOVE PARTITION
+        return level == MergeTreePartInfo::MAX_LEVEL || level == MergeTreePartInfo::LEGACY_MAX_LEVEL;
     }
 
-    String getPartName() const;
+    String getPartNameAndCheckFormat(MergeTreeDataFormatVersion format_version) const;
+    String getPartNameForLogs() const;
+    String getPartNameV1() const;
     String getPartNameV0(DayNum left_date, DayNum right_date) const;
     UInt64 getBlocksCount() const
     {
         return static_cast<UInt64>(max_block - min_block + 1);
     }
 
-    /// Simple sanity check for partition ID. Checking that it's not too long or too short, doesn't contain a lot of '_'.
-    static void validatePartitionID(const String & partition_id, MergeTreeDataFormatVersion format_version);
+    void serialize(WriteBuffer & out) const;
+    String describe() const;
+    void deserialize(ReadBuffer & in);
 
-    static MergeTreePartInfo fromPartName(const String & part_name, MergeTreeDataFormatVersion format_version);  // -V1071
+    /// Simple sanity check for partition ID. Checking that it's not too long or too short, doesn't contain a lot of '_'.
+    static void validatePartitionID(const ASTPtr & partition_id_ast, MergeTreeDataFormatVersion format_version);
+
+    static MergeTreePartInfo fromPartName(const String & part_name, MergeTreeDataFormatVersion format_version);
 
     static std::optional<MergeTreePartInfo> tryParsePartName(
         std::string_view part_name, MergeTreeDataFormatVersion format_version);
@@ -112,11 +137,16 @@ struct MergeTreePartInfo
 
     static bool contains(const String & outer_part_name, const String & inner_part_name, MergeTreeDataFormatVersion format_version);
 
+    static bool areAllBlockNumbersCovered(const MergeTreePartInfo & blocks_range, std::vector<MergeTreePartInfo> candidates);
+
     static constexpr UInt32 MAX_LEVEL = 999999999;
     static constexpr UInt32 MAX_BLOCK_NUMBER = 999999999;
 
     static constexpr UInt32 LEGACY_MAX_LEVEL = std::numeric_limits<decltype(level)>::max();
 };
+
+class IDisk;
+using DiskPtr = std::shared_ptr<IDisk>;
 
 /// Information about detached part, which includes its prefix in
 /// addition to the above fields.
@@ -125,7 +155,7 @@ struct DetachedPartInfo : public MergeTreePartInfo
     String dir_name;
     String prefix;
 
-    String disk;
+    DiskPtr disk;
 
     /// If false, MergeTreePartInfo is in invalid state (directory name was not successfully parsed).
     bool valid_name;
@@ -139,7 +169,24 @@ struct DetachedPartInfo : public MergeTreePartInfo
         "clone",
         "attaching",
         "deleting",
-        "tmp-fetch"
+        "tmp-fetch",
+        "covered-by-broken",
+        "merge-not-byte-identical",
+        "mutate-not-byte-identical",
+        "broken-from-backup",
+    });
+
+    static constexpr auto DETACHED_REASONS_REMOVABLE_BY_TIMEOUT = std::to_array<std::string_view>({
+        "broken",
+        "unexpected",
+        "noquorum",
+        "ignored",
+        "broken-on-start",
+        "deleting",
+        "clone",
+        "merge-not-byte-identical",
+        "mutate-not-byte-identical",
+        "broken-from-backup",
     });
 
     /// NOTE: It may parse part info incorrectly.
@@ -147,7 +194,7 @@ struct DetachedPartInfo : public MergeTreePartInfo
     // This method has different semantics with MergeTreePartInfo::tryParsePartName.
     // Detached parts are always parsed regardless of their validity.
     // DetachedPartInfo::valid_name field specifies whether parsing was successful or not.
-    static DetachedPartInfo parseDetachedPartName(std::string_view dir_name, MergeTreeDataFormatVersion format_version);
+    static DetachedPartInfo parseDetachedPartName(const DiskPtr & disk, std::string_view dir_name, MergeTreeDataFormatVersion format_version);
 
 private:
     void addParsedPartInfo(const MergeTreePartInfo& part);

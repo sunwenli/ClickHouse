@@ -4,6 +4,7 @@
 #include <random>
 #include <pcg_random.hpp>
 
+#include <absl/container/inlined_vector.h>
 
 namespace LZ4
 {
@@ -82,13 +83,12 @@ struct PerformanceStatistics
 
             if (adjustedCount() < 2)
                 return adjustedCount() - 1;
-            else
-                return std::normal_distribution<>(mean(), sigma())(stat_rng);
+            return std::normal_distribution<>(mean(), sigma())(stat_rng);
         }
     };
 
     /// Number of different algorithms to select from.
-    static constexpr size_t NUM_ELEMENTS = 4;
+    static constexpr size_t NUM_ELEMENTS = 5;
 
     /// Cold invocations may be affected by additional memory latencies. Don't take first invocations into account.
     static constexpr double NUM_INVOCATIONS_TO_THROW_OFF = 2;
@@ -106,20 +106,19 @@ struct PerformanceStatistics
 
     /// To select from different algorithms we use a kind of "bandits" algorithm.
     /// Sample random values from estimated normal distributions and choose the minimal.
-    size_t select()
+    size_t select(size_t max_method = NUM_ELEMENTS)
     {
         if (choose_method < 0)
         {
-            double samples[NUM_ELEMENTS];
-            for (size_t i = 0; i < NUM_ELEMENTS; ++i)
+            absl::InlinedVector<double, NUM_ELEMENTS> samples(max_method);
+            for (size_t i = 0; i < max_method; ++i)
                 samples[i] = choose_method == -1
                     ? data[i].sample(rng)
                     : data[i].adjustedCount();
 
-            return std::min_element(samples, samples + NUM_ELEMENTS) - samples;
+            return std::min_element(samples.begin(), samples.end()) - samples.begin();
         }
-        else
-            return choose_method;
+        return choose_method;
     }
 
     PerformanceStatistics() = default;
@@ -130,8 +129,8 @@ struct PerformanceStatistics
 /** This method dispatch to one of different implementations depending on performance statistics.
   */
 bool decompress(
-    const char * const source,
-    char * const dest,
+    const char * const source, /// NOLINT
+    char * const dest, /// NOLINT
     size_t source_size,
     size_t dest_size,
     PerformanceStatistics & statistics);
@@ -156,8 +155,8 @@ struct StreamStatistics
 };
 
 void statistics(
-    const char * const source,
-    char * const dest,
+    const char * const source, /// NOLINT
+    char * const dest, /// NOLINT
     size_t dest_size,
     StreamStatistics & stat);
 

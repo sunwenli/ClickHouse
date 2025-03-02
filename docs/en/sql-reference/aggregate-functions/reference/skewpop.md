@@ -1,8 +1,11 @@
 ---
-toc_priority: 150
+slug: /sql-reference/aggregate-functions/reference/skewpop
+sidebar_position: 185
+title: "skewPop"
+description: "Computes the skewness of a sequence."
 ---
 
-# skewPop {#skewpop}
+# skewPop
 
 Computes the [skewness](https://en.wikipedia.org/wiki/Skewness) of a sequence.
 

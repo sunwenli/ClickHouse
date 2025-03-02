@@ -1,12 +1,13 @@
 #pragma once
 
+#include <optional>
 #include <base/types.h>
 #include <signal.h>
 #include <time.h>
 
-#if !defined(ARCADIA_BUILD)
-#    include <Common/config.h>
-#endif
+#include "config.h"
+
+#include <Common/Logger.h>
 
 
 namespace Poco
@@ -28,35 +29,56 @@ namespace DB
   * Destructor tries to unset timer and restore previous signal handler.
   * Note that signal handler implementation is defined by template parameter. See QueryProfilerReal and QueryProfilerCPU.
   */
+
+#ifndef __APPLE__
+class Timer
+{
+public:
+    Timer();
+    Timer(const Timer &) = delete;
+    Timer & operator = (const Timer &) = delete;
+    ~Timer();
+
+    void createIfNecessary(UInt64 thread_id, int clock_type, int pause_signal);
+    void set(UInt64 period);
+    void stop();
+    void cleanup();
+
+private:
+    LoggerPtr log;
+    std::optional<timer_t> timer_id;
+};
+#endif
+
 template <typename ProfilerImpl>
 class QueryProfilerBase
 {
+    friend ProfilerImpl;
+
 public:
-    QueryProfilerBase(const UInt64 thread_id, const int clock_type, UInt32 period, const int pause_signal_);
     ~QueryProfilerBase();
 
+    void setPeriod(UInt64 period_);
+
 private:
-    void tryCleanup();
+    QueryProfilerBase(UInt64 thread_id, int clock_type, UInt64 period, int pause_signal_);
+    void cleanup();
 
-    Poco::Logger * log;
+    LoggerPtr log;
 
-#if USE_UNWIND
-    /// Timer id from timer_create(2)
-    timer_t timer_id = nullptr;
+#ifndef __APPLE__
+    inline static thread_local Timer timer = Timer();
 #endif
 
     /// Pause signal to interrupt threads to get traces
     int pause_signal;
-
-    /// Previous signal handler to restore after query profiler exits
-    struct sigaction * previous_handler = nullptr;
 };
 
 /// Query profiler with timer based on real clock
 class QueryProfilerReal : public QueryProfilerBase<QueryProfilerReal>
 {
 public:
-    QueryProfilerReal(const UInt64 thread_id, const UInt32 period);
+    QueryProfilerReal(UInt64 thread_id, UInt64 period); /// NOLINT
 
     static void signalHandler(int sig, siginfo_t * info, void * context);
 };
@@ -65,7 +87,7 @@ public:
 class QueryProfilerCPU : public QueryProfilerBase<QueryProfilerCPU>
 {
 public:
-    QueryProfilerCPU(const UInt64 thread_id, const UInt32 period);
+    QueryProfilerCPU(UInt64 thread_id, UInt64 period); /// NOLINT
 
     static void signalHandler(int sig, siginfo_t * info, void * context);
 };

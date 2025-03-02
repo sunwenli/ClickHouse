@@ -1,11 +1,12 @@
 ---
-toc_priority: 37
-toc_title: file
+slug: /zh/sql-reference/table-functions/file
+sidebar_position: 37
+sidebar_label: file
 ---
 
 # file {#file}
 
-从文件创建表。 此表函数类似于 [url](../../sql-reference/table-functions/url.md) 和 [hdfs](../../sql-reference/table-functions/hdfs.md)。
+从文件创建表。 此表函数类似于 [url](/sql-reference/table-functions/url) 和 [hdfs](/sql-reference/table-functions/hdfs)。
 
 `file` 函数可用于对[File](../../engines/table-engines/special/file.md) 表中的数据进行 `SELECT` 和 `INSERT` 查询。
 
@@ -113,7 +114,7 @@ FROM file('{some,another}_dir/*', 'TSV', 'name String, value UInt32')
 
 **示例**
 
-从名为 `file000`, `file001`, … , `file999`的文件中查询数据:
+从名为 `file000`, `file001`, ... , `file999`的文件中查询数据:
 
 ``` sql
 SELECT count(*)
@@ -127,6 +128,4 @@ FROM file('big_dir/file{0..9}{0..9}{0..9}', 'CSV', 'name String, value UInt32')
 
 **另请参阅**
 
--   [虚拟列](https://clickhouse.com/docs/en/operations/table_engines/#table_engines-virtual_columns)
-
-[原始文章](https://clickhouse.com/docs/en/query_language/table_functions/file/) <!--hide-->
+-   [虚拟列](/engines/table-engines#table_engines-virtual_columns)

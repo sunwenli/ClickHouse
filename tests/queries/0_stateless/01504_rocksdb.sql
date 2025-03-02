@@ -4,9 +4,9 @@
 
 DROP TABLE IF EXISTS 01504_test;
 
-CREATE TABLE 01504_test (key String, value UInt32) Engine=EmbeddedRocksDB; -- { serverError 36 }
-CREATE TABLE 01504_test (key String, value UInt32) Engine=EmbeddedRocksDB PRIMARY KEY(key2); -- { serverError 47 }
-CREATE TABLE 01504_test (key String, value UInt32) Engine=EmbeddedRocksDB PRIMARY KEY(key, value); -- { serverError 36 }
+CREATE TABLE 01504_test (key String, value UInt32) Engine=EmbeddedRocksDB; -- { serverError BAD_ARGUMENTS }
+CREATE TABLE 01504_test (key String, value UInt32) Engine=EmbeddedRocksDB PRIMARY KEY(key2); -- { serverError UNKNOWN_IDENTIFIER }
+CREATE TABLE 01504_test (key String, value UInt32) Engine=EmbeddedRocksDB PRIMARY KEY(key, value); -- { serverError BAD_ARGUMENTS }
 CREATE TABLE 01504_test (key Tuple(String, UInt32), value UInt64) Engine=EmbeddedRocksDB PRIMARY KEY(key);
 
 DROP TABLE IF EXISTS 01504_test;
@@ -34,14 +34,14 @@ INSERT INTO 01504_test_memory SELECT number % 77 AS k, SUM(number) AS value, (1,
 
 SELECT  A.a = B.a, A.b = B.b, A.c = B.c, A.d = B.d, A.e = B.e FROM ( SELECT 0 AS a, groupBitmapMerge(bm) AS b , SUM(k) AS c, SUM(value) AS d, SUM(dummy.1) AS e FROM 01504_test) A  ANY LEFT JOIN  (SELECT 0 AS a, groupBitmapMerge(bm) AS b , SUM(k) AS c, SUM(value) AS d, SUM(dummy.1) AS e FROM 01504_test_memory) B USING a ORDER BY a;
 
-CREATE TEMPORARY TABLE keys AS SELECT * FROM numbers(1000);
+CREATE TEMPORARY TABLE keys AS SELECT * FROM system.numbers LIMIT 1 OFFSET 4;
 
 SET max_rows_to_read = 2;
 SELECT dummy == (1,1.2) FROM 01504_test WHERE k IN (1, 3) OR k IN (1) OR k IN (3, 1) OR k IN [1] OR k IN [1, 3] ;
 SELECT k == 4 FROM 01504_test WHERE k = 4 OR k IN [4] OR k in (4, 10000001, 10000002) AND value > 0;
 SELECT k == 4 FROM 01504_test WHERE k IN (SELECT toUInt32(number) FROM keys WHERE number = 4);
-SELECT k, value FROM 01504_test WHERE k = 0 OR value > 0; -- { serverError 158 }
-SELECT k, value FROM 01504_test WHERE k = 0 AND k IN (1, 3) OR k > 8; -- { serverError 158 }
+SELECT k, value FROM 01504_test WHERE k = 0 OR value > 0; -- { serverError TOO_MANY_ROWS }
+SELECT k, value FROM 01504_test WHERE k = 0 AND k IN (1, 3) OR k > 8; -- { serverError TOO_MANY_ROWS }
 
 TRUNCATE TABLE 01504_test;
 SELECT 0 == COUNT(1) FROM 01504_test;

@@ -1,11 +1,9 @@
 #pragma once
 
-#include <Processors/Formats/IRowOutputFormat.h>
-#include <Core/Block.h>
-
 #include <Core/MySQL/PacketEndpoint.h>
+#include <Interpreters/Context_fwd.h>
 #include <Processors/Formats/IOutputFormat.h>
-
+#include <Processors/Formats/IRowOutputFormat.h>
 
 namespace DB
 {
@@ -26,21 +24,20 @@ public:
 
     void setContext(ContextPtr context_);
 
-    void consume(Chunk) override;
-    void finalize() override;
-    void flush() override;
-    void doWritePrefix() override { initialize(); }
+    void flushImpl() override;
 
 private:
-    void initialize();
+    void consume(Chunk) override;
+    void finalizeImpl() override;
+    void writePrefix() override;
 
-    bool initialized = false;
     uint32_t client_capabilities = 0;
     uint8_t * sequence_id = nullptr;
     uint8_t dummy_sequence_id = 0;
     MySQLProtocol::PacketEndpointPtr packet_endpoint;
     DataTypes data_types;
     Serializations serializations;
+    bool use_binary_result_set = false;
 };
 
 }

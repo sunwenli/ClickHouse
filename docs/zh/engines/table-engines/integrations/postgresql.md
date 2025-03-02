@@ -1,6 +1,7 @@
 ---
-toc_priority: 11
-toc_title: PostgreSQL
+slug: /zh/engines/table-engines/integrations/postgresql
+sidebar_position: 11
+sidebar_label: PostgreSQL
 ---
 
 # PostgreSQL {#postgresql}
@@ -18,12 +19,12 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
 ) ENGINE = PostgreSQL('host:port', 'database', 'table', 'user', 'password'[, `schema`]);
 ```
 
-<!-- 详情请见 [CREATE TABLE](../../../sql-reference/statements/create/table.md#create-table-query) 查询. -->
+<!-- 详情请见 [CREATE TABLE](../../../sql-reference/statements/create/table.mdx#create-table-query) 查询. -->
 
 表结构可以与 PostgreSQL 源表结构不同:
 
 -   列名应与 PostgreSQL 源表中的列名相同，但您可以按任何顺序使用其中的一些列。
--   列类型可能与源表中的列类型不同。 ClickHouse尝试将数值[映射](../../../sql-reference/functions/type-conversion-functions.md#type_conversion_function-cast) 到ClickHouse的数据类型。
+-   列类型可能与源表中的列类型不同。 ClickHouse尝试将数值[映射](/sql-reference/functions/type-conversion-functions#cast) 到ClickHouse的数据类型。
 -   设置 `external_table_functions_use_nulls` 来定义如何处理 Nullable 列. 默认值是 1, 当设置为 0 时 - 表函数将不会使用 nullable 列，而是插入默认值来代替 null. 这同样适用于数组数据类型中的 null 值.
 
 **引擎参数**
@@ -141,5 +142,3 @@ CREATE TABLE pg_table_schema_with_dots (a UInt32)
 
 <!-- -   [`postgresql` 表函数](../../../sql-reference/table-functions/postgresql.md) -->
 -   [使用 PostgreSQL 作为外部字典的来源](../../../sql-reference/dictionaries/external-dictionaries/external-dicts-dict-sources.md#dicts-external_dicts_dict_sources-postgresql)
-
-[原始文章](https://clickhouse.com/docs/en/engines/table-engines/integrations/postgresql/) <!--hide-->

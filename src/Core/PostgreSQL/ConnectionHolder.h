@@ -1,20 +1,18 @@
 #pragma once
 
-#if !defined(ARCADIA_BUILD)
-#include "config_core.h"
-#endif
+#include "config.h"
 
 #if USE_LIBPQXX
 
-#include <pqxx/pqxx> // Y_IGNORE
+#include <pqxx/pqxx>
 #include <Core/Types.h>
 #include <base/BorrowedObjectPool.h>
+#include "Connection.h"
 
 
 namespace postgres
 {
 
-using ConnectionPtr = std::unique_ptr<pqxx::connection>;
 using Pool = BorrowedObjectPool<ConnectionPtr>;
 using PoolPtr = std::shared_ptr<Pool>;
 
@@ -22,21 +20,51 @@ class ConnectionHolder
 {
 
 public:
-    ConnectionHolder(PoolPtr pool_, ConnectionPtr connection_) : pool(pool_), connection(std::move(connection_)) {}
+    ConnectionHolder(PoolPtr pool_, ConnectionPtr connection_, bool auto_close_)
+        : pool(pool_)
+        , connection(std::move(connection_))
+        , auto_close(auto_close_)
+    {}
 
     ConnectionHolder(const ConnectionHolder & other) = delete;
 
-    ~ConnectionHolder() { pool->returnObject(std::move(connection)); }
+    void setBroken() { is_broken = true; }
+
+    ~ConnectionHolder()
+    {
+        if (auto_close)
+        {
+            connection.reset();
+        }
+        else if (is_broken)
+        {
+            try
+            {
+                connection->getRef().reset();
+            }
+            catch (...)
+            {
+                connection.reset();
+            }
+        }
+        pool->returnObject(std::move(connection));
+    }
 
     pqxx::connection & get()
     {
-        assert(connection != nullptr);
-        return *connection;
+        return connection->getRef();
+    }
+
+    void update()
+    {
+        connection->updateConnection();
     }
 
 private:
     PoolPtr pool;
     ConnectionPtr connection;
+    bool auto_close;
+    bool is_broken = false;
 };
 
 using ConnectionHolderPtr = std::unique_ptr<ConnectionHolder>;

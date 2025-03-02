@@ -2,33 +2,28 @@
 #include <Common/ThreadProfileEvents.h>
 #include <Common/QueryProfiler.h>
 #include <Common/ThreadStatus.h>
+#include <Common/CurrentThread.h>
+#include <Common/logger_useful.h>
+#include <base/getPageSize.h>
 #include <base/errnoToString.h>
-#include <Interpreters/OpenTelemetrySpanLog.h>
+#include <Interpreters/Context.h>
 
 #include <Poco/Logger.h>
-#include <base/getThreadId.h>
-#include <base/getPageSize.h>
 
 #include <csignal>
-#include <mutex>
+#include <sys/mman.h>
 
 
 namespace DB
 {
+thread_local ThreadStatus constinit * current_thread = nullptr;
 
-
-namespace ErrorCodes
-{
-    extern const int LOGICAL_ERROR;
-}
-
-
-thread_local ThreadStatus * current_thread = nullptr;
-thread_local ThreadStatus * main_thread = nullptr;
-
-#if !defined(SANITIZER) && !defined(ARCADIA_BUILD)
+#if !defined(SANITIZER)
 namespace
 {
+
+/// For aarch64 16K is not enough (likely due to tons of registers)
+constexpr size_t UNWIND_MINSIGSTKSZ = 32 << 10;
 
 /// Alternative stack for signal handling.
 ///
@@ -57,7 +52,7 @@ struct ThreadStack
         free(data);
     }
 
-    static size_t getSize() { return std::max<size_t>(16 << 10, MINSIGSTKSZ); }
+    static size_t getSize() { return std::max<size_t>(UNWIND_MINSIGSTKSZ, MINSIGSTKSZ); }
     void * getData() const { return data; }
 
 private:
@@ -71,14 +66,20 @@ static thread_local ThreadStack alt_stack;
 static thread_local bool has_alt_stack = false;
 #endif
 
+ThreadGroup::ThreadGroup()
+    : master_thread_id(CurrentThread::get().thread_id)
+    , memory_spill_scheduler(false)
+{}
 
-ThreadStatus::ThreadStatus()
-    : thread_id{getThreadId()}
+ThreadStatus::ThreadStatus(bool check_current_thread_on_destruction_)
+    : thread_id{getThreadId()}, check_current_thread_on_destruction(check_current_thread_on_destruction_)
 {
+    chassert(!current_thread);
+
     last_rusage = std::make_unique<RUsageCounters>();
 
-    memory_tracker.setDescription("(for thread)");
-    log = &Poco::Logger::get("ThreadStatus");
+    memory_tracker.setDescription("Thread");
+    log = getLogger("ThreadStatus");
 
     current_thread = this;
 
@@ -88,7 +89,7 @@ ThreadStatus::ThreadStatus()
     /// Will set alternative signal stack to provide diagnostics for stack overflow errors.
     /// If not already installed for current thread.
     /// Sanitizer makes larger stack usage and also it's incompatible with alternative stack by default (it sets up and relies on its own).
-#if !defined(SANITIZER) && !defined(ARCADIA_BUILD)
+#if !defined(SANITIZER)
     if (!has_alt_stack)
     {
         /// Don't repeat tries even if not installed successfully.
@@ -98,11 +99,11 @@ ThreadStatus::ThreadStatus()
         stack_t altstack_description{};
         altstack_description.ss_sp = alt_stack.getData();
         altstack_description.ss_flags = 0;
-        altstack_description.ss_size = alt_stack.getSize();
+        altstack_description.ss_size = ThreadStack::getSize();
 
         if (0 != sigaltstack(&altstack_description, nullptr))
         {
-            LOG_WARNING(log, "Cannot set alternative signal stack for thread, {}", errnoToString(errno));
+            LOG_WARNING(log, "Cannot set alternative signal stack for thread, {}", errnoToString());
         }
         else
         {
@@ -110,7 +111,7 @@ ThreadStatus::ThreadStatus()
             struct sigaction action{};
             if (0 != sigaction(SIGSEGV, nullptr, &action))
             {
-                LOG_WARNING(log, "Cannot obtain previous signal action to set alternative signal stack for thread, {}", errnoToString(errno));
+                LOG_WARNING(log, "Cannot obtain previous signal action to set alternative signal stack for thread, {}", errnoToString());
             }
             else if (!(action.sa_flags & SA_ONSTACK))
             {
@@ -118,7 +119,7 @@ ThreadStatus::ThreadStatus()
 
                 if (0 != sigaction(SIGSEGV, &action, nullptr))
                 {
-                    LOG_WARNING(log, "Cannot set action with alternative signal stack for thread, {}", errnoToString(errno));
+                    LOG_WARNING(log, "Cannot set action with alternative signal stack for thread, {}", errnoToString());
                 }
             }
         }
@@ -126,40 +127,114 @@ ThreadStatus::ThreadStatus()
 #endif
 }
 
-ThreadStatus::~ThreadStatus()
+ThreadGroupPtr ThreadStatus::getThreadGroup() const
 {
-    try
-    {
-        if (untracked_memory > 0)
-            memory_tracker.alloc(untracked_memory);
-        else
-            memory_tracker.free(-untracked_memory);
-    }
-    catch (const DB::Exception &)
-    {
-        /// It's a minor tracked memory leak here (not the memory itself but it's counter).
-        /// We've already allocated a little bit more than the limit and cannot track it in the thread memory tracker or its parent.
-    }
+    chassert(current_thread == this);
+    return thread_group;
+}
+
+const String & ThreadStatus::getQueryId() const
+{
+    return query_id_from_query_context;
+}
+
+ContextPtr ThreadStatus::getQueryContext() const
+{
+    return query_context.lock();
+}
+
+ContextPtr ThreadStatus::getGlobalContext() const
+{
+    return global_context.lock();
+}
+
+void ThreadGroup::attachInternalTextLogsQueue(const InternalTextLogsQueuePtr & logs_queue, LogsLevel logs_level)
+{
+    std::lock_guard lock(mutex);
+    shared_data.logs_queue_ptr = logs_queue;
+    shared_data.client_logs_level = logs_level;
+}
+
+void ThreadStatus::attachInternalTextLogsQueue(const InternalTextLogsQueuePtr & logs_queue,
+                                               LogsLevel logs_level)
+{
+    local_data.logs_queue_ptr = logs_queue;
+    local_data.client_logs_level = logs_level;
 
     if (thread_group)
-    {
-        std::lock_guard guard(thread_group->mutex);
-        thread_group->threads.erase(this);
-    }
+        thread_group->attachInternalTextLogsQueue(logs_queue, logs_level);
+}
 
-#if !defined(ARCADIA_BUILD)
+InternalTextLogsQueuePtr ThreadStatus::getInternalTextLogsQueue() const
+{
+    return local_data.logs_queue_ptr.lock();
+}
+
+InternalProfileEventsQueuePtr ThreadStatus::getInternalProfileEventsQueue() const
+{
+    return local_data.profile_queue_ptr.lock();
+}
+
+const String & ThreadStatus::getQueryForLog() const
+{
+    return local_data.query_for_logs;
+}
+
+LogsLevel ThreadStatus::getClientLogsLevel() const
+{
+    return local_data.client_logs_level;
+}
+
+void ThreadStatus::flushUntrackedMemory()
+{
+    if (untracked_memory == 0)
+        return;
+
+    memory_tracker.adjustWithUntrackedMemory(untracked_memory);
+    untracked_memory = 0;
+}
+
+bool ThreadStatus::isQueryCanceled() const
+{
+    if (!thread_group)
+        return false;
+
+    if (local_data.query_is_canceled_predicate)
+        return local_data.query_is_canceled_predicate();
+    return false;
+}
+
+size_t ThreadStatus::getNextPlanStepIndex() const
+{
+    return local_data.plan_step_index->fetch_add(1);
+}
+
+size_t ThreadStatus::getNextPipelineProcessorIndex() const
+{
+    return local_data.pipeline_processor_index->fetch_add(1);
+}
+
+ThreadStatus::~ThreadStatus()
+{
     /// It may cause segfault if query_context was destroyed, but was not detached
     auto query_context_ptr = query_context.lock();
-    assert((!query_context_ptr && query_id.empty()) || (query_context_ptr && query_id == query_context_ptr->getCurrentQueryId()));
-#endif
+    assert((!query_context_ptr && getQueryId().empty()) || (query_context_ptr && getQueryId() == query_context_ptr->getCurrentQueryId()));
 
+    /// detachGroup if it was attached
     if (deleter)
         deleter();
 
+    chassert(!check_current_thread_on_destruction || current_thread == this);
+
+    /// Flush untracked_memory **right before** switching the current_thread to avoid losing untracked_memory in deleter (detachFromGroup)
+    flushUntrackedMemory();
+
     /// Only change current_thread if it's currently being used by this ThreadStatus
-    /// For example, PushingToViewsBlockOutputStream creates and deletes ThreadStatus instances while running in the main query thread
+    /// For example, PushingToViews chain creates and deletes ThreadStatus instances while running in the main query thread
     if (current_thread == this)
         current_thread = nullptr;
+    else if (check_current_thread_on_destruction)
+        LOG_ERROR(log, "current_thread contains invalid address");
 }
 
 void ThreadStatus::updatePerformanceCounters()
@@ -176,53 +251,18 @@ void ThreadStatus::updatePerformanceCounters()
     }
 }
 
-void ThreadStatus::assertState(const std::initializer_list<int> & permitted_states, const char * description) const
+void ThreadStatus::updatePerformanceCountersIfNeeded()
 {
-    for (auto permitted_state : permitted_states)
+    if (last_rusage->thread_id == 0)
+        return; // Performance counters are not initialized, so there is no need to update them
+
+    constexpr UInt64 performance_counters_update_period_microseconds = 10 * 1000; // 10 milliseconds
+    UInt64 total_elapsed_microseconds = stopwatch.elapsedMicroseconds();
+    if (last_performance_counters_update_time + performance_counters_update_period_microseconds < total_elapsed_microseconds)
     {
-        if (getCurrentState() == permitted_state)
-            return;
+        updatePerformanceCounters();
+        last_performance_counters_update_time = total_elapsed_microseconds;
     }
-
-    if (description)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Unexpected thread state {}: {}", getCurrentState(), description);
-    else
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Unexpected thread state {}", getCurrentState());
-}
-
-void ThreadStatus::attachInternalTextLogsQueue(const InternalTextLogsQueuePtr & logs_queue,
-                                               LogsLevel client_logs_level)
-{
-    logs_queue_ptr = logs_queue;
-
-    if (!thread_group)
-        return;
-
-    std::lock_guard lock(thread_group->mutex);
-    thread_group->logs_queue_ptr = logs_queue;
-    thread_group->client_logs_level = client_logs_level;
-}
-
-void ThreadStatus::attachInternalProfileEventsQueue(const InternalProfileEventsQueuePtr & profile_queue)
-{
-    profile_queue_ptr = profile_queue;
-
-    if (!thread_group)
-        return;
-
-    std::lock_guard lock(thread_group->mutex);
-    thread_group->profile_queue_ptr = profile_queue;
-}
-
-void ThreadStatus::setFatalErrorCallback(std::function<void()> callback)
-{
-    fatal_error_callback = std::move(callback);
-
-    if (!thread_group)
-        return;
-
-    std::lock_guard lock(thread_group->mutex);
-    thread_group->fatal_error_callback = fatal_error_callback;
 }
 
 void ThreadStatus::onFatalError()
@@ -232,15 +272,18 @@ void ThreadStatus::onFatalError()
 }
 
 ThreadStatus * MainThreadStatus::main_thread = nullptr;
+
 MainThreadStatus & MainThreadStatus::getInstance()
 {
     static MainThreadStatus thread_status;
     return thread_status;
 }
+
 MainThreadStatus::MainThreadStatus()
 {
     main_thread = current_thread;
 }
+
 MainThreadStatus::~MainThreadStatus()
 {
     main_thread = nullptr;

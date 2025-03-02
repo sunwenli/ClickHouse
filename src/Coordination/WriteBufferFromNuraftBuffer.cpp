@@ -1,5 +1,4 @@
 #include <Coordination/WriteBufferFromNuraftBuffer.h>
-#include <base/logger_useful.h>
 
 namespace DB
 {
@@ -11,8 +10,8 @@ namespace ErrorCodes
 
 void WriteBufferFromNuraftBuffer::nextImpl()
 {
-    if (is_finished)
-        throw Exception("WriteBufferFromNuraftBuffer is finished", ErrorCodes::CANNOT_WRITE_AFTER_END_OF_BUFFER);
+    if (finalized)
+        throw Exception(ErrorCodes::CANNOT_WRITE_AFTER_END_OF_BUFFER, "WriteBufferFromNuraftBuffer is finished");
 
     /// pos may not be equal to vector.data() + old_size, because WriteBuffer::next() can be used to flush data
     size_t pos_offset = pos - reinterpret_cast<Position>(buffer->data_begin());
@@ -35,12 +34,8 @@ WriteBufferFromNuraftBuffer::WriteBufferFromNuraftBuffer()
     set(reinterpret_cast<Position>(buffer->data_begin()), buffer->size());
 }
 
-void WriteBufferFromNuraftBuffer::finalize()
+void WriteBufferFromNuraftBuffer::finalizeImpl()
 {
-    if (is_finished)
-        return;
-
-    is_finished = true;
     size_t real_size = pos - reinterpret_cast<Position>(buffer->data_begin());
     nuraft::ptr<nuraft::buffer> new_buffer = nuraft::buffer::alloc(real_size);
     memcpy(new_buffer->data_begin(), buffer->data_begin(), real_size);
@@ -48,6 +43,8 @@ void WriteBufferFromNuraftBuffer::finalize()
 
     /// Prevent further writes.
     set(nullptr, 0);
+
+    WriteBuffer::finalizeImpl();
 }
 
 nuraft::ptr<nuraft::buffer> WriteBufferFromNuraftBuffer::getBuffer()

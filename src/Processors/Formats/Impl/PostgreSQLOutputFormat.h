@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Processors/Formats/IRowOutputFormat.h>
-#include <Core/Block.h>
 
 #include <Core/PostgreSQLProtocol.h>
 #include <Formats/FormatSettings.h>
@@ -17,13 +16,11 @@ public:
 
     String getName() const override {return "PostgreSQLOutputFormat";}
 
-    void doWritePrefix() override;
-    void consume(Chunk) override;
-    void finalize() override;
-    void flush() override;
+    void flushImpl() override;
 
 private:
-    bool initialized = false;
+    void writePrefix() override;
+    void consume(Chunk) override;
 
     FormatSettings format_settings;
     PostgreSQLProtocol::Messaging::MessageTransport message_transport;

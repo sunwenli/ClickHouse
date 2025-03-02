@@ -2,63 +2,44 @@
 
 #include <IO/BufferWithOwnMemory.h>
 #include <IO/WriteBuffer.h>
+#include <IO/WriteBufferDecorator.h>
 
-#if !defined(ARCADIA_BUILD)
-    #include <lzma.h> // Y_IGNORE
-#endif
+#include <lzma.h>
 
 
 namespace DB
 {
 
-#if !defined(ARCADIA_BUILD)
-
 /// Performs compression using lzma library and writes compressed data to out_ WriteBuffer.
-class LZMADeflatingWriteBuffer : public BufferWithOwnMemory<WriteBuffer>
+class LZMADeflatingWriteBuffer : public WriteBufferWithOwnMemoryDecorator
 {
 public:
+    template<typename WriteBufferT>
     LZMADeflatingWriteBuffer(
-        std::unique_ptr<WriteBuffer> out_,
+        WriteBufferT && out_,
         int compression_level,
         size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE,
-        char * existing_memory = nullptr,
-        size_t alignment = 0);
-
-    void finalize() override { finish(); }
+        char * existing_memory = nullptr, /// NOLINT(readability-non-const-parameter)
+        size_t alignment = 0,
+        bool compress_empty_ = true)
+    : WriteBufferWithOwnMemoryDecorator(std::move(out_), buf_size, existing_memory, alignment), compress_empty(compress_empty_) /// NOLINT(bugprone-move-forwarding-reference)
+    {
+        initialize(compression_level);
+    }
 
     ~LZMADeflatingWriteBuffer() override;
 
 private:
+    void initialize(int compression_level);
+
     void nextImpl() override;
 
-    void finish();
-    void finishImpl();
+    void finalizeBefore() override;
+    void finalizeAfter() override;
 
-    std::unique_ptr<WriteBuffer> out;
     lzma_stream lstr;
-    bool finished = false;
+
+    bool compress_empty = true;
 };
 
-#else
-
-namespace ErrorCodes
-{
-    extern const int NOT_IMPLEMENTED;
-}
-
-class LZMADeflatingWriteBuffer : public BufferWithOwnMemory<WriteBuffer>
-{
-public:
-    LZMADeflatingWriteBuffer(
-        std::unique_ptr<WriteBuffer> out_ [[maybe_unused]],
-        int compression_level [[maybe_unused]],
-        size_t buf_size [[maybe_unused]] = DBMS_DEFAULT_BUFFER_SIZE,
-        char * existing_memory [[maybe_unused]] = nullptr,
-        size_t alignment [[maybe_unused]] = 0)
-    {
-        throw Exception("LZMADeflatingWriteBuffer is not implemented for arcadia build", ErrorCodes::NOT_IMPLEMENTED);
-    }
-};
-
-#endif
 }

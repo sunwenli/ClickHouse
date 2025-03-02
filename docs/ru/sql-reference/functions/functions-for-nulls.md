@@ -1,13 +1,14 @@
 ---
-toc_priority: 63
-toc_title: "Функции для работы с Nullable-аргументами"
+slug: /ru/sql-reference/functions/functions-for-nulls
+sidebar_position: 63
+sidebar_label: "Функции для работы с Nullable-аргументами"
 ---
 
 # Функции для работы с Nullable-аргументами {#funktsii-dlia-raboty-s-nullable-argumentami}
 
 ## isNull {#isnull}
 
-Проверяет является ли аргумент [NULL](../../sql-reference/syntax.md#null-literal).
+Проверяет является ли аргумент [NULL](/operations/settings/formats#input_format_null_as_default).
 
 ``` sql
 isNull(x)
@@ -49,7 +50,7 @@ SELECT x FROM t_null WHERE isNull(y);
 
 ## isNotNull {#isnotnull}
 
-Проверяет не является ли аргумент [NULL](../../sql-reference/syntax.md#null-literal).
+Проверяет не является ли аргумент [NULL](/operations/settings/formats#input_format_null_as_default).
 
 ``` sql
 isNotNull(x)
@@ -308,4 +309,3 @@ SELECT toTypeName(toNullable(10));
 │ Nullable(UInt8)            │
 └────────────────────────────┘
 ```
-

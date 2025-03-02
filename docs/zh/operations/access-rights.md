@@ -1,6 +1,7 @@
 ---
-toc_priority: 48
-toc_title: "访问权限和账户管理"
+slug: /zh/operations/access-rights
+sidebar_position: 48
+sidebar_label: "访问权限和账户管理"
 ---
 
 # 访问权限和账户管理 {#access-rights}
@@ -23,9 +24,9 @@ ClickHouse权限实体包括：
 
 我们建议你使用SQL工作流的方式。当然配置的方式也可以同时起作用, 所以如果你正在用服务端配置的方式来管理权限和账户，你可以平滑的切换到SQL驱动的工作流方式。
 
-!!! note "警告"
-    你无法同时使用两个配置的方式来管理同一个权限实体。
-
+:::warning
+你无法同时使用两个配置的方式来管理同一个权限实体。
+:::
 
 ## 用法 {#access-control-usage}
 
@@ -35,7 +36,7 @@ ClickHouse权限实体包括：
 
 1. 为 `default` 用户[开启SQL驱动方式的访问权限和账户管理](#enabling-access-control) .
 2. 使用 `default` 用户登录并且创建所需要的所有用户。 不要忘记创建管理员账户 (`GRANT ALL ON *.* WITH GRANT OPTION TO admin_user_account`)。
-3. [限制](settings/permissions-for-queries.md#permissions_for_queries) `default` 用户的权限并且禁用SQL驱动方式的访问权限和账户管理。
+3. [限制](/operations/settings/permissions-for-queries) `default` 用户的权限并且禁用SQL驱动方式的访问权限和账户管理。
 
 ### 当前解决方案的特性 {#access-control-properties}
 
@@ -54,14 +55,14 @@ ClickHouse权限实体包括：
 - 用户登录的时候默认的限制设置。
 - 指定的设置描述。
 
-特权可以通过[GRANT](../sql-reference/statements/grant.md)查询授权给用户或者通过[角色](#role-management)授予。如果想撤销特权，可以使用[REVOKE](../sql-reference/statements/revoke.md)查询。查询用户所有的特权，使用[SHOW GRANTS](../sql-reference/statements/show.md#show-grants-statement)语句。
+特权可以通过[GRANT](../sql-reference/statements/grant.md)查询授权给用户或者通过[角色](#role-management)授予。如果想撤销特权，可以使用[REVOKE](../sql-reference/statements/revoke.md)查询。查询用户所有的特权，使用[SHOW GRANTS](/sql-reference/statements/show#show-grants)语句。
 
 查询管理：
 
 - [CREATE USER](../sql-reference/statements/create.md#create-user-statement)
 - [ALTER USER](../sql-reference/statements/alter.md#alter-user-statement)
 - [DROP USER](../sql-reference/statements/misc.md#drop-user-statement)
-- [SHOW CREATE USER](../sql-reference/statements/show.md#show-create-user-statement)
+- [SHOW CREATE USER](/sql-reference/statements/show#show-create-user)
 
 ### 设置应用规则 {#access-control-settings-applying}
 
@@ -85,7 +86,7 @@ ClickHouse权限实体包括：
 
 查询管理:
 
-- [CREATE ROLE](../sql-reference/statements/create.md#create-role-statement)
+- [CREATE ROLE](/sql-reference/statements/create/role)
 - [ALTER ROLE](../sql-reference/statements/alter.md#alter-role-statement)
 - [DROP ROLE](../sql-reference/statements/misc.md#drop-role-statement)
 - [SET ROLE](../sql-reference/statements/misc.md#set-role-statement)
@@ -141,6 +142,3 @@ Management queries:
 - 为至少一个账户开启SQL驱动方式的访问权限和账户管理.
 
      默认情况，SQL驱动方式的访问权限和账户管理对所有用户都是关闭的。你需要在 `users.xml` 中配置至少一个用户，并且把[权限管理](settings/settings-users.md#access_management-user-setting)的值设置为1。
-
-
-[Original article](https://clickhouse.com/docs/en/operations/access_rights/) <!--hide-->

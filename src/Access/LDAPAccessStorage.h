@@ -22,7 +22,7 @@ namespace Poco
 
 namespace DB
 {
-class AccessControlManager;
+class AccessControl;
 
 /// Implementation of IAccessStorage which allows attaching users from a remote LDAP server.
 /// Currently, any user name will be treated as a name of an existing remote user,
@@ -32,46 +32,37 @@ class LDAPAccessStorage : public IAccessStorage
 public:
     static constexpr char STORAGE_TYPE[] = "ldap";
 
-    explicit LDAPAccessStorage(const String & storage_name_, AccessControlManager * access_control_manager_, const Poco::Util::AbstractConfiguration & config, const String & prefix);
-    virtual ~LDAPAccessStorage() override = default;
+    explicit LDAPAccessStorage(const String & storage_name_, AccessControl & access_control_, const Poco::Util::AbstractConfiguration & config, const String & prefix);
+    ~LDAPAccessStorage() override = default;
 
     String getLDAPServerName() const;
 
-public: // IAccessStorage implementations.
-    virtual const char * getStorageType() const override;
-    virtual String getStorageParamsJSON() const override;
+    // IAccessStorage implementations.
+    const char * getStorageType() const override;
+    String getStorageParamsJSON() const override;
+    bool isReadOnly() const override { return true; }
+    bool exists(const UUID & id) const override;
 
 private: // IAccessStorage implementations.
-    virtual std::optional<UUID> findImpl(EntityType type, const String & name) const override;
-    virtual std::vector<UUID> findAllImpl(EntityType type) const override;
-    virtual bool existsImpl(const UUID & id) const override;
-    virtual AccessEntityPtr readImpl(const UUID & id) const override;
-    virtual String readNameImpl(const UUID & id) const override;
-    virtual bool canInsertImpl(const AccessEntityPtr &) const override;
-    virtual UUID insertImpl(const AccessEntityPtr & entity, bool replace_if_exists) override;
-    virtual void removeImpl(const UUID & id) override;
-    virtual void updateImpl(const UUID & id, const UpdateFunc & update_func) override;
-    virtual scope_guard subscribeForChangesImpl(const UUID & id, const OnChangedHandler & handler) const override;
-    virtual scope_guard subscribeForChangesImpl(EntityType type, const OnChangedHandler & handler) const override;
-    virtual bool hasSubscriptionImpl(const UUID & id) const override;
-    virtual bool hasSubscriptionImpl(EntityType type) const override;
-    virtual UUID loginImpl(const Credentials & credentials, const Poco::Net::IPAddress & address, const ExternalAuthenticators & external_authenticators) const override;
-    virtual UUID getIDOfLoggedUserImpl(const String & user_name) const override;
+    std::optional<UUID> findImpl(AccessEntityType type, const String & name) const override;
+    std::vector<UUID> findAllImpl(AccessEntityType type) const override;
+    AccessEntityPtr readImpl(const UUID & id, bool throw_if_not_exists) const override;
+    std::optional<std::pair<String, AccessEntityType>> readNameWithTypeImpl(const UUID & id, bool throw_if_not_exists) const override;
+    std::optional<AuthResult> authenticateImpl(const Credentials & credentials, const Poco::Net::IPAddress & address, const ExternalAuthenticators & external_authenticators, bool throw_if_user_not_exists, bool allow_no_password, bool allow_plaintext_password) const override;
 
-private:
-    void setConfiguration(AccessControlManager * access_control_manager_, const Poco::Util::AbstractConfiguration & config, const String & prefix);
+    void setConfiguration(const Poco::Util::AbstractConfiguration & config, const String & prefix);
     void processRoleChange(const UUID & id, const AccessEntityPtr & entity);
 
     void applyRoleChangeNoLock(bool grant, const UUID & role_id, const String & role_name);
     void assignRolesNoLock(User & user, const LDAPClient::SearchResultsList & external_roles) const;
-    void assignRolesNoLock(User & user, const LDAPClient::SearchResultsList & external_roles, const std::size_t external_roles_hash) const;
+    void assignRolesNoLock(User & user, const LDAPClient::SearchResultsList & external_roles, std::size_t external_roles_hash) const;
     void updateAssignedRolesNoLock(const UUID & id, const String & user_name, const LDAPClient::SearchResultsList & external_roles) const;
     std::set<String> mapExternalRolesNoLock(const LDAPClient::SearchResultsList & external_roles) const;
     bool areLDAPCredentialsValidNoLock(const User & user, const Credentials & credentials,
         const ExternalAuthenticators & external_authenticators, LDAPClient::SearchResultsList & role_search_results) const;
 
-    mutable std::recursive_mutex mutex;
-    AccessControlManager * access_control_manager = nullptr;
+    mutable std::recursive_mutex mutex; // Note: Reentrace possible by internal role lookup via access_control
+    AccessControl & access_control;
     String ldap_server_name;
     LDAPClient::RoleSearchParamsList role_search_params;
     std::set<String> common_role_names;                         // role name that should be granted to all users at all times

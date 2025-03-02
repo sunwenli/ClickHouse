@@ -6,14 +6,18 @@
 #include <Core/NamesAndTypes.h>
 
 #include <initializer_list>
-#include <list>
-#include <map>
-#include <set>
 #include <vector>
 
 
+class SipHash;
+
 namespace DB
 {
+
+class ISerialization;
+class SerializationInfoByName;
+using SerializationPtr = std::shared_ptr<const ISerialization>;
+using Serializations = std::vector<SerializationPtr>;
 
 /** Container for set of columns for bunch of rows in memory.
   * This is unit of data processing.
@@ -36,7 +40,8 @@ public:
 
     Block() = default;
     Block(std::initializer_list<ColumnWithTypeAndName> il);
-    Block(const ColumnsWithTypeAndName & data_);
+    Block(const ColumnsWithTypeAndName & data_); /// NOLINT
+    Block(ColumnsWithTypeAndName && data_); /// NOLINT
 
     /// insert the column at the specified position
     void insert(size_t position, ColumnWithTypeAndName elem);
@@ -59,21 +64,25 @@ public:
     ColumnWithTypeAndName & safeGetByPosition(size_t position);
     const ColumnWithTypeAndName & safeGetByPosition(size_t position) const;
 
-    ColumnWithTypeAndName* findByName(const std::string & name)
+    ColumnWithTypeAndName* findByName(const std::string & name, bool case_insensitive = false)
     {
         return const_cast<ColumnWithTypeAndName *>(
-            const_cast<const Block *>(this)->findByName(name));
+            const_cast<const Block *>(this)->findByName(name, case_insensitive));
     }
 
-    const ColumnWithTypeAndName * findByName(const std::string & name) const;
+    const ColumnWithTypeAndName * findByName(const std::string & name, bool case_insensitive = false) const;
+    std::optional<ColumnWithTypeAndName> findSubcolumnByName(const std::string & name) const;
+    std::optional<ColumnWithTypeAndName> findColumnOrSubcolumnByName(const std::string & name) const;
 
-    ColumnWithTypeAndName & getByName(const std::string & name)
+    ColumnWithTypeAndName & getByName(const std::string & name, bool case_insensitive = false)
     {
         return const_cast<ColumnWithTypeAndName &>(
-            const_cast<const Block *>(this)->getByName(name));
+            const_cast<const Block *>(this)->getByName(name, case_insensitive));
     }
 
-    const ColumnWithTypeAndName & getByName(const std::string & name) const;
+    const ColumnWithTypeAndName & getByName(const std::string & name, bool case_insensitive = false) const;
+    ColumnWithTypeAndName getSubcolumnByName(const std::string & name) const;
+    ColumnWithTypeAndName getColumnOrSubcolumnByName(const std::string & name) const;
 
     Container::iterator begin() { return data.begin(); }
     Container::iterator end() { return data.end(); }
@@ -82,14 +91,23 @@ public:
     Container::const_iterator cbegin() const { return data.cbegin(); }
     Container::const_iterator cend() const { return data.cend(); }
 
-    bool has(const std::string & name) const;
+    bool has(const std::string & name, bool case_insensitive = false) const;
 
     size_t getPositionByName(const std::string & name) const;
 
     const ColumnsWithTypeAndName & getColumnsWithTypeAndName() const;
     NamesAndTypesList getNamesAndTypesList() const;
+    NamesAndTypes getNamesAndTypes() const;
     Names getNames() const;
     DataTypes getDataTypes() const;
+    Names getDataTypeNames() const;
+
+    /// Hash table match `column name -> position in the block`.
+
+    const IndexByName & getIndexByName() const { return index_by_name; }
+
+    Serializations getSerializations() const;
+    Serializations getSerializations(const SerializationInfoByName & hints) const;
 
     /// Returns number of rows from first column in block, not equal to nullptr. If no columns, returns 0.
     size_t rows() const;
@@ -105,8 +123,8 @@ public:
     /// Approximate number of allocated bytes in memory - for profiling and limits.
     size_t allocatedBytes() const;
 
-    operator bool() const { return !!columns(); }
-    bool operator!() const { return !this->operator bool(); }
+    explicit operator bool() const { return !!columns(); }
+    bool operator!() const { return !this->operator bool(); } /// NOLINT
 
     /** Get a list of column names separated by commas. */
     std::string dumpNames() const;
@@ -130,6 +148,9 @@ public:
     /** Get empty columns with the same types as in block. */
     MutableColumns cloneEmptyColumns() const;
 
+    /** Get empty columns with the same types as in block and given serializations. */
+    MutableColumns cloneEmptyColumns(const Serializations & serializations) const;
+
     /** Get columns from block for mutation. Columns in block will be nullptr. */
     MutableColumns mutateColumns();
 
@@ -139,6 +160,13 @@ public:
 
     /** Get a block with columns that have been rearranged in the order of their names. */
     Block sortColumns() const;
+
+    /** See IColumn::shrinkToFit() */
+    Block shrinkToFit() const;
+
+    Block compress() const;
+
+    Block decompress() const;
 
     void clear();
     void swap(Block & other) noexcept;
@@ -161,11 +189,6 @@ private:
     friend class ActionsDAG;
 };
 
-using BlockPtr = std::shared_ptr<Block>;
-using Blocks = std::vector<Block>;
-using BlocksList = std::list<Block>;
-using BlocksPtr = std::shared_ptr<Blocks>;
-using BlocksPtrs = std::shared_ptr<std::vector<BlocksPtr>>;
 
 /// Extends block with extra data in derived classes
 struct ExtraBlock
@@ -175,29 +198,27 @@ struct ExtraBlock
     bool empty() const { return !block; }
 };
 
-using ExtraBlockPtr = std::shared_ptr<ExtraBlock>;
-
 /// Compare number of columns, data types, column types, column names, and values of constant columns.
 bool blocksHaveEqualStructure(const Block & lhs, const Block & rhs);
 
 /// Throw exception when blocks are different.
-void assertBlocksHaveEqualStructure(const Block & lhs, const Block & rhs, const std::string & context_description);
+void assertBlocksHaveEqualStructure(const Block & lhs, const Block & rhs, std::string_view context_description);
 
 /// Actual header is compatible to desired if block have equal structure except constants.
 /// It is allowed when column from actual header is constant, but in desired is not.
 /// If both columns are constant, it is checked that they have the same value.
 bool isCompatibleHeader(const Block & actual, const Block & desired);
-void assertCompatibleHeader(const Block & actual, const Block & desired, const std::string & context_description);
+void assertCompatibleHeader(const Block & actual, const Block & desired, std::string_view context_description);
 
 /// Calculate difference in structure of blocks and write description into output strings. NOTE It doesn't compare values of constant columns.
 void getBlocksDifference(const Block & lhs, const Block & rhs, std::string & out_lhs_diff, std::string & out_rhs_diff);
 
-/// Helps in-memory storages to extract columns from block.
-/// Properly handles cases, when column is a subcolumn and when it is compressed.
-ColumnPtr getColumnFromBlock(const Block & block, const NameAndTypePair & column);
+void convertToFullIfSparse(Block & block);
 
 /// Converts columns-constants to full columns ("materializes" them).
 Block materializeBlock(const Block & block);
 void materializeBlockInplace(Block & block);
+
+Block concatenateBlocks(const std::vector<Block> & blocks);
 
 }

@@ -1,6 +1,7 @@
 ---
-toc_priority: 36
-toc_title: HDFS
+slug: /zh/engines/table-engines/integrations/hdfs
+sidebar_position: 36
+sidebar_label: HDFS
 ---
 
 # HDFS {#table_engines-hdfs}
@@ -17,7 +18,7 @@ ENGINE = HDFS(URI, format)
 `URI` 参数是 HDFS 中整个文件的 URI。
 `format` 参数指定一种可用的文件格式。 执行
 `SELECT` 查询时，格式必须支持输入，以及执行
-`INSERT` 查询时，格式必须支持输出. 你可以在 [格式](../../../interfaces/formats.md#formats) 章节查看可用的格式。
+`INSERT` 查询时，格式必须支持输出. 你可以在 [格式](/interfaces/formats#formats-overview) 章节查看可用的格式。
 路径部分 `URI` 可能包含 glob 通配符。 在这种情况下，表将是只读的。
 
 **示例:**
@@ -102,7 +103,7 @@ CREATE TABLE table_with_asterisk (name String, value UInt32) ENGINE = HDFS('hdfs
 
 **示例**
 
-创建具有名为文件的表 `file000`, `file001`, … , `file999`:
+创建具有名为文件的表 `file000`, `file001`, ... , `file999`:
 
 ``` sql
 CREARE TABLE big_table (name String, value UInt32) ENGINE = HDFS('hdfs://hdfs1:9000/big_dir/file{0..9}{0..9}{0..9}', 'CSV')
@@ -204,5 +205,3 @@ CREARE TABLE big_table (name String, value UInt32) ENGINE = HDFS('hdfs://hdfs1:9
 **另请参阅**
 
 -   [虚拟列](../index.md#table_engines-virtual_columns)
-
-[原始文章](https://clickhouse.com/docs/en/operations/table_engines/hdfs/) <!--hide-->

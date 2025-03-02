@@ -1,8 +1,11 @@
 ---
-toc_priority: 111
+slug: /sql-reference/aggregate-functions/reference/groupuniqarray
+sidebar_position: 154
+title: "groupUniqArray"
+description: "Creates an array from different argument values."
 ---
 
-# groupUniqArray {#groupuniqarray}
+# groupUniqArray
 
 Syntax: `groupUniqArray(x)` or `groupUniqArray(max_size)(x)`
 

@@ -1,4 +1,5 @@
 ---
+slug: /zh/operations/system-tables/query_log
 machine_translated: true
 machine_translated_rev: 5decc73b5dc60054f19087d3690c4eb99446a6c3
 ---
@@ -7,8 +8,9 @@ machine_translated_rev: 5decc73b5dc60054f19087d3690c4eb99446a6c3
 
 包含已执行查询的相关信息，例如：开始时间、处理持续时间、错误消息。
 
-!!! note "注"
-    此表不包含以下内容的摄取数据 `INSERT` 查询。
+:::note
+此表不包含以下内容的摄取数据 `INSERT` 查询。
+:::
 
 您可以更改query_log的设置，在服务器配置的 [query_log](../../operations/server-configuration-parameters/settings.md#server_configuration_parameters-query-log) 部分。
 
@@ -58,11 +60,11 @@ ClickHouse不会自动从表中删除数据。更多详情请看 [introduction](
     -   0 — 由另一个查询发起的，作为分布式查询的一部分.
 -   `user` ([String](../../sql-reference/data-types/string.md)) — 发起查询的用户.
 -   `query_id` ([String](../../sql-reference/data-types/string.md)) — 查询ID.
--   `address` ([IPv6](../../sql-reference/data-types/domains/ipv6.md)) — 发起查询的客户端IP地址.
+-   `address` ([IPv6](../../sql-reference/data-types/ipv6.md)) — 发起查询的客户端IP地址.
 -   `port` ([UInt16](../../sql-reference/data-types/int-uint.md)) — 发起查询的客户端端口.
 -   `initial_user` ([String](../../sql-reference/data-types/string.md)) — 初始查询的用户名（用于分布式查询执行）.
 -   `initial_query_id` ([String](../../sql-reference/data-types/string.md)) — 运行初始查询的ID（用于分布式查询执行）.
--   `initial_address` ([IPv6](../../sql-reference/data-types/domains/ipv6.md)) — 运行父查询的IP地址.
+-   `initial_address` ([IPv6](../../sql-reference/data-types/ipv6.md)) — 运行父查询的IP地址.
 -   `initial_port` ([UInt16](../../sql-reference/data-types/int-uint.md)) — 发起父查询的客户端端口.
 -   `interface` ([UInt8](../../sql-reference/data-types/int-uint.md)) — 发起查询的接口. 可能的值:
     -   1 — TCP.
@@ -81,7 +83,7 @@ ClickHouse不会自动从表中删除数据。更多详情请看 [introduction](
 -   `http_user_agent` ([String](../../sql-reference/data-types/string.md)) — The `UserAgent` The UserAgent header passed in the HTTP request。
 -   `quota_key` ([String](../../sql-reference/data-types/string.md)) — 在[quotas](../../operations/quotas.md) 配置里设置的“quota key” （见 `keyed`).
 -   `revision` ([UInt32](../../sql-reference/data-types/int-uint.md)) — ClickHouse revision.
--   `ProfileEvents` ([Map(String, UInt64))](../../sql-reference/data-types/array.md)) — Counters that measure different metrics. The description of them could be found in the table [系统。活动](../../operations/system-tables/events.md#system_tables-events)
+-   `ProfileEvents` ([Map(String, UInt64))](../../sql-reference/data-types/array.md)) — Counters that measure different metrics. The description of them could be found in the table [系统。活动](/operations/system-tables/events)
 -   `Settings` ([Map(String, String)](../../sql-reference/data-types/array.md)) — Names of settings that were changed when the client ran the query. To enable logging changes to settings, set the `log_query_settings` 参数为1。
 -   `thread_ids` ([Array(UInt64)](../../sql-reference/data-types/array.md)) — 参与查询的线程数.
 -   `Settings.Names` ([Array（String)](../../sql-reference/data-types/array.md)) — 客户端运行查询时更改的设置的名称。 要启用对设置的日志记录更改，请将log_query_settings参数设置为1。
@@ -139,4 +141,4 @@ Settings:             {'background_pool_size':'32','load_balancing':'random','al
 
 **另请参阅**
 
--   [system.query_thread_log](../../operations/system-tables/query_thread_log.md#system_tables-query_thread_log) — 这个表包含了每个查询执行线程的信息
+-   [system.query_thread_log](/operations/system-tables/query_thread_log) — 这个表包含了每个查询执行线程的信息

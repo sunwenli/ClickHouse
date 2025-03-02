@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# Tags: no-unbundled, no-fasttest
+# Tags: no-fasttest
 
 CUR_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=../shell_config.sh
 . "$CUR_DIR"/../shell_config.sh
 
 ${CLICKHOUSE_CLIENT} --query="DROP TABLE IF EXISTS maps"
-${CLICKHOUSE_CLIENT} --multiquery <<EOF
-SET allow_experimental_map_type = 1;
+${CLICKHOUSE_CLIENT} <<EOF
 CREATE TABLE maps (m1 Map(UInt32, UInt32), m2 Map(String, String), m3 Map(UInt32, Tuple(UInt32, UInt32)), m4 Map(UInt32, Array(UInt32)), m5 Array(Map(UInt32, UInt32)), m6 Tuple(Map(UInt32, UInt32), Map(String, String)), m7 Array(Map(UInt32, Array(Tuple(Map(UInt32, UInt32), Tuple(UInt32)))))) ENGINE=Memory();
 EOF
 

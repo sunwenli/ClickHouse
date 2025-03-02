@@ -1,6 +1,7 @@
 ---
-toc_priority: 68
-toc_title: "Хранение данных на внешних дисках"
+slug: /ru/operations/storing-data
+sidebar_position: 68
+sidebar_label: "Хранение данных на внешних дисках"
 ---
 
 # Хранение данных на внешних дисках {#external-disks}
@@ -19,7 +20,7 @@ toc_title: "Хранение данных на внешних дисках"
 
 Пример конфигурации:
 ``` xml
-<yandex>
+<clickhouse>
     <storage_configuration>
         <disks>
             <hdfs>
@@ -41,7 +42,7 @@ toc_title: "Хранение данных на внешних дисках"
     <merge_tree>
         <min_bytes_for_wide_part>0</min_bytes_for_wide_part>
     </merge_tree>
-</yandex>
+</clickhouse>
 ```
 
 Обязательные параметры:
@@ -81,19 +82,19 @@ toc_title: "Хранение данных на внешних дисках"
 
 -   `type` — `encrypted`. Иначе зашифрованный диск создан не будет.
 -   `disk` — тип диска для хранения данных.
--   `key` — ключ для шифрования и расшифровки. Тип: [Uint64](../sql-reference/data-types/int-uint.md). Вы можете использовать параметр `key_hex` для шифрования в шестнадцатеричной форме.
+-   `key` — ключ для шифрования и расшифровки. Тип: [UInt64](../sql-reference/data-types/int-uint.md). Вы можете использовать параметр `key_hex` для шифрования в шестнадцатеричной форме.
     Вы можете указать несколько ключей, используя атрибут `id` (смотрите пример выше).
 
 Необязательные параметры:
 
 -   `path` — путь к месту на диске, где будут сохранены данные. Если не указан, данные будут сохранены в корневом каталоге.
 -   `current_key_id` — ключ, используемый для шифрования. Все указанные ключи могут быть использованы для расшифровки, и вы всегда можете переключиться на другой ключ, сохраняя доступ к ранее зашифрованным данным.
--   `algorithm` — [алгоритм](../sql-reference/statements/create/table.md#create-query-encryption-codecs) шифрования данных. Возможные значения: `AES_128_CTR`, `AES_192_CTR` или `AES_256_CTR`. Значение по умолчанию: `AES_128_CTR`. Длина ключа зависит от алгоритма: `AES_128_CTR` — 16 байт, `AES_192_CTR` — 24 байта, `AES_256_CTR` — 32 байта.
+-   `algorithm` — [алгоритм](/sql-reference/statements/create/table#encryption-codecs) шифрования данных. Возможные значения: `AES_128_CTR`, `AES_192_CTR` или `AES_256_CTR`. Значение по умолчанию: `AES_128_CTR`. Длина ключа зависит от алгоритма: `AES_128_CTR` — 16 байт, `AES_192_CTR` — 24 байта, `AES_256_CTR` — 32 байта.
 
 Пример конфигурации:
 
 ``` xml
-<yandex>
+<clickhouse>
     <storage_configuration>
         <disks>
             <disk_s3>
@@ -110,7 +111,7 @@ toc_title: "Хранение данных на внешних дисках"
             </disk_s3_encrypted>
         </disks>
     </storage_configuration>
-</yandex>
+</clickhouse>
 ```
 
 ## Хранение данных на веб-сервере {#storing-data-on-webserver}
@@ -124,7 +125,7 @@ toc_title: "Хранение данных на внешних дисках"
 Готовый тестовый пример. Добавьте эту конфигурацию в config:
 
 ``` xml
-<yandex>
+<clickhouse>
     <storage_configuration>
         <disks>
             <web>
@@ -142,7 +143,7 @@ toc_title: "Хранение данных на внешних дисках"
             </web>
         </policies>
     </storage_configuration>
-</yandex>
+</clickhouse>
 ```
 
 А затем выполните этот запрос:

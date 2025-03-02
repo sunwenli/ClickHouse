@@ -3,6 +3,7 @@
 #include <Interpreters/Aliases.h>
 #include <Interpreters/Context_fwd.h>
 #include <Interpreters/DatabaseAndTableWithAlias.h>
+#include <Storages/IStorage_fwd.h>
 #include <Parsers/IAST_fwd.h>
 
 namespace DB
@@ -15,13 +16,16 @@ struct TreeRewriterResult;
 class TreeOptimizer
 {
 public:
+
     static void apply(
         ASTPtr & query,
         TreeRewriterResult & result,
         const std::vector<TableWithColumnNamesAndTypes> & tables_with_columns,
         ContextPtr context);
 
-    static void optimizeIf(ASTPtr & query, Aliases & aliases, bool if_chain_to_multiif);
+    static void optimizeIf(ASTPtr & query, Aliases & aliases, bool if_chain_to_multiif, bool multiif_to_if);
+    static void optimizeCountConstantAndSumOne(ASTPtr & query, ContextPtr context);
+    static void optimizeGroupByFunctionKeys(ASTSelectQuery * select_query);
 };
 
 }

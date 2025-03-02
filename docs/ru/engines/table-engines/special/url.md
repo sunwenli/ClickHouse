@@ -1,6 +1,7 @@
 ---
-toc_priority: 41
-toc_title: URL
+slug: /ru/engines/table-engines/special/url
+sidebar_position: 41
+sidebar_label: URL
 ---
 
 # URL(URL, Format) {#table_engines-url}
@@ -12,7 +13,7 @@ toc_title: URL
 
 `Format` должен быть таким, который ClickHouse может использовать в запросах
 `SELECT` и, если есть необходимость, `INSERT`. Полный список поддерживаемых форматов смотрите в
-разделе [Форматы](../../../interfaces/formats.md#formats).
+разделе [Форматы](/interfaces/formats#formats-overview).
 
 `URL` должен соответствовать структуре Uniform Resource Locator. По указанному URL должен находится сервер
 работающий по протоколу HTTP или HTTPS. При этом не должно требоваться никаких
@@ -22,7 +23,7 @@ toc_title: URL
 соответственно. Для обработки `POST`-запросов удаленный сервер должен поддерживать
 [Chunked transfer encoding](https://ru.wikipedia.org/wiki/Chunked_transfer_encoding).
 
-Максимальное количество переходов по редиректам при выполнении HTTP-запроса методом GET можно ограничить с помощью настройки [max_http_get_redirects](../../../operations/settings/settings.md#setting-max_http_get_redirects).
+Максимальное количество переходов по редиректам при выполнении HTTP-запроса методом GET можно ограничить с помощью настройки [max_http_get_redirects](/operations/settings/settings#max_http_get_redirects).
 
 **Пример:**
 
@@ -76,4 +77,3 @@ SELECT * FROM url_engine_table
     -   использование операций `ALTER` и `SELECT...SAMPLE`;
     -   индексы;
     -   репликация.
-

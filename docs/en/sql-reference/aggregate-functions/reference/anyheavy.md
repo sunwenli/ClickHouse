@@ -1,10 +1,13 @@
 ---
-toc_priority: 103
+slug: /sql-reference/aggregate-functions/reference/anyheavy
+sidebar_position: 104
+title: "anyHeavy"
+description: "Selects a frequently occurring value using the heavy hitters algorithm. If there is a value that occurs more than in half the cases in each of the query's execution threads, this value is returned. Normally, the result is nondeterministic."
 ---
 
-# anyHeavy {#anyheavyx}
+# anyHeavy
 
-Selects a frequently occurring value using the [heavy hitters](http://www.cs.umd.edu/~samir/498/karp.pdf) algorithm. If there is a value that occurs more than in half the cases in each of the query’s execution threads, this value is returned. Normally, the result is nondeterministic.
+Selects a frequently occurring value using the [heavy hitters](https://doi.org/10.1145/762471.762473) algorithm. If there is a value that occurs more than in half the cases in each of the query's execution threads, this value is returned. Normally, the result is nondeterministic.
 
 ``` sql
 anyHeavy(column)
@@ -12,7 +15,7 @@ anyHeavy(column)
 
 **Arguments**
 
--   `column` – The column name.
+- `column` – The column name.
 
 **Example**
 

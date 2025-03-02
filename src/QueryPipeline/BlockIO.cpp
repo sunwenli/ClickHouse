@@ -4,7 +4,6 @@
 namespace DB
 {
 
-
 void BlockIO::reset()
 {
     /** process_list_entry should be destroyed after in, after out and after pipeline,
@@ -23,7 +22,7 @@ void BlockIO::reset()
     /// TODO Do we need also reset callbacks? In which order?
 }
 
-BlockIO & BlockIO::operator= (BlockIO && rhs)
+BlockIO & BlockIO::operator= (BlockIO && rhs) noexcept
 {
     if (this == &rhs)
         return *this;
@@ -37,7 +36,7 @@ BlockIO & BlockIO::operator= (BlockIO && rhs)
     finish_callback         = std::move(rhs.finish_callback);
     exception_callback      = std::move(rhs.exception_callback);
 
-    null_format             = std::move(rhs.null_format);
+    null_format             = rhs.null_format;
 
     return *this;
 }
@@ -47,5 +46,39 @@ BlockIO::~BlockIO()
     reset();
 }
 
+void BlockIO::onFinish()
+{
+    if (finish_callback)
+        finish_callback(pipeline);
+
+    pipeline.reset();
 }
 
+void BlockIO::onException(bool log_as_error)
+{
+    setAllDataSent();
+
+    if (exception_callback)
+        exception_callback(log_as_error);
+
+    pipeline.cancel();
+    pipeline.reset();
+}
+
+void BlockIO::onCancelOrConnectionLoss()
+{
+    pipeline.cancel();
+    pipeline.reset();
+}
+
+void BlockIO::setAllDataSent() const
+{
+    /// The following queries does not have process_list_entry:
+    /// - internal
+    /// - SHOW PROCESSLIST
+    if (process_list_entry)
+        process_list_entry->getQueryStatus()->setAllDataSent();
+}
+
+
+}

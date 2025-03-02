@@ -1,6 +1,4 @@
-#if !defined(ARCADIA_BUILD)
-#    include "config_functions.h"
-#endif
+#include "config.h"
 
 #if USE_S2_GEOMETRY
 
@@ -21,6 +19,7 @@ namespace ErrorCodes
 {
     extern const int ILLEGAL_TYPE_OF_ARGUMENT;
     extern const int BAD_ARGUMENTS;
+    extern const int ILLEGAL_COLUMN;
 }
 
 namespace
@@ -65,25 +64,53 @@ public:
         return std::make_shared<DataTypeUInt8>();
     }
 
+    DataTypePtr getReturnTypeForDefaultImplementationForDynamic() const override
+    {
+        return std::make_shared<DataTypeUInt8>();
+    }
+
     ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const override
     {
-        const auto * col_id_first = arguments[0].column.get();
-        const auto * col_id_second = arguments[1].column.get();
+        auto non_const_arguments = arguments;
+        for (auto & argument : non_const_arguments)
+            argument.column = argument.column->convertToFullColumnIfConst();
+
+        const auto * col_id_first = checkAndGetColumn<ColumnUInt64>(non_const_arguments[0].column.get());
+        if (!col_id_first)
+            throw Exception(
+                ErrorCodes::ILLEGAL_COLUMN,
+                "Illegal type {} of argument {} of function {}. Must be UInt64",
+                arguments[0].type->getName(),
+                1,
+                getName());
+        const auto & data_id_first = col_id_first->getData();
+
+        const auto * col_id_second = checkAndGetColumn<ColumnUInt64>(non_const_arguments[1].column.get());
+        if (!col_id_second)
+            throw Exception(
+                ErrorCodes::ILLEGAL_COLUMN,
+                "Illegal type {} of argument {} of function {}. Must be UInt64",
+                arguments[1].type->getName(),
+                2,
+                getName());
+        const auto & data_id_second = col_id_second->getData();
 
         auto dst = ColumnUInt8::create();
         auto & dst_data = dst->getData();
         dst_data.reserve(input_rows_count);
 
-        for (const auto row : collections::range(0, input_rows_count))
+        for (size_t row = 0; row < input_rows_count; ++row)
         {
-            const UInt64 id_first = col_id_first->getInt(row);
-            const UInt64 id_second = col_id_second->getInt(row);
+            const UInt64 id_first = data_id_first[row];
+            const UInt64 id_second = data_id_second[row];
 
             auto first_cell = S2CellId(id_first);
-            auto second_cell = S2CellId(id_second);
+            if (!first_cell.is_valid())
+                throw Exception(ErrorCodes::BAD_ARGUMENTS, "First cell (id {}) is not valid in function {}", id_first, getName());
 
-            if (!first_cell.is_valid() || !second_cell.is_valid())
-                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cell is not valid");
+            auto second_cell = S2CellId(id_second);
+            if (!second_cell.is_valid())
+                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Second cell (id {}) is not valid in function {}", id_second, getName());
 
             dst_data.emplace_back(S2CellId(id_first).intersects(S2CellId(id_second)));
         }
@@ -95,7 +122,7 @@ public:
 
 }
 
-void registerFunctionS2CellsIntersect(FunctionFactory & factory)
+REGISTER_FUNCTION(S2CellsIntersect)
 {
     factory.registerFunction<FunctionS2CellsIntersect>();
 }

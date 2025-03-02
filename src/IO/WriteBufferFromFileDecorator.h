@@ -13,18 +13,25 @@ public:
 
     ~WriteBufferFromFileDecorator() override;
 
-    void finalize() override;
-
     void sync() override;
 
     std::string getFileName() const override;
 
+    void preFinalize() override;
+
+    const WriteBuffer & getImpl() const { return *impl; }
+
 protected:
+    void finalizeImpl() override;
+
+    void cancelImpl() noexcept override;
+
     std::unique_ptr<WriteBuffer> impl;
-    bool finalized = false;
 
 private:
     void nextImpl() override;
+
+    bool is_prefinalized = false;
 };
 
 }

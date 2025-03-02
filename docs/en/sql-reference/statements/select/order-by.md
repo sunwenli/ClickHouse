@@ -1,22 +1,33 @@
 ---
-toc_title: ORDER BY
+slug: /sql-reference/statements/select/order-by
+sidebar_label: ORDER BY
 ---
 
-# ORDER BY Clause {#select-order-by}
+# ORDER BY Clause
 
-The `ORDER BY` clause contains a list of expressions, which can each be attributed with `DESC` (descending) or `ASC` (ascending) modifier which determine the sorting direction. If the direction is not specified, `ASC` is assumed, so it’s usually omitted. The sorting direction applies to a single expression, not to the entire list. Example: `ORDER BY Visits DESC, SearchPhrase`.
+The `ORDER BY` clause contains
 
-If you want to sort by column numbers instead of column names, enable the setting [enable_positional_arguments](../../../operations/settings/settings.md#enable-positional-arguments).
+- a list of expressions, e.g. `ORDER BY visits, search_phrase`,
+- a list of numbers referring to columns in the `SELECT` clause, e.g. `ORDER BY 2, 1`, or
+- `ALL` which means all columns of the `SELECT` clause, e.g. `ORDER BY ALL`.
 
-Rows that have identical values for the list of sorting expressions are output in an arbitrary order, which can also be non-deterministic (different each time).
-If the ORDER BY clause is omitted, the order of the rows is also undefined, and may be non-deterministic as well.
+To disable sorting by column numbers, set setting [enable_positional_arguments](../../../operations/settings/settings.md#enable-positional-arguments) = 0.
+To disable sorting by `ALL`, set setting [enable_order_by_all](../../../operations/settings/settings.md#enable-order-by-all) = 0.
+
+The `ORDER BY` clause can be attributed by a `DESC` (descending) or `ASC` (ascending) modifier which determines the sorting direction.
+Unless an explicit sort order is specified, `ASC` is used by default.
+The sorting direction applies to a single expression, not to the entire list, e.g. `ORDER BY Visits DESC, SearchPhrase`.
+Also, sorting is performed case-sensitively.
+
+Rows with identical values for a sort expressions are returned in an arbitrary and non-deterministic order.
+If the `ORDER BY` clause is omitted in a `SELECT` statement, the row order is also arbitrary and non-deterministic.
 
 ## Sorting of Special Values {#sorting-of-special-values}
 
 There are two approaches to `NaN` and `NULL` sorting order:
 
--   By default or with the `NULLS LAST` modifier: first the values, then `NaN`, then `NULL`.
--   With the `NULLS FIRST` modifier: first `NULL`, then `NaN`, then other values.
+- By default or with the `NULLS LAST` modifier: first the values, then `NaN`, then `NULL`.
+- With the `NULLS FIRST` modifier: first `NULL`, then `NaN`, then other values.
 
 ### Example {#example}
 
@@ -174,7 +185,7 @@ Example with [LowCardinality](../../../sql-reference/data-types/lowcardinality.m
 
 Input table:
 
-```text
+```response
 ┌─x─┬─s───┐
 │ 1 │ Z   │
 │ 2 │ z   │
@@ -194,7 +205,7 @@ SELECT * FROM collate_test ORDER BY s ASC COLLATE 'en';
 
 Result:
 
-```text
+```response
 ┌─x─┬─s───┐
 │ 7 │     │
 │ 3 │ a   │
@@ -208,7 +219,7 @@ Result:
 
 Example with [Tuple](../../../sql-reference/data-types/tuple.md):
 
-```text
+```response
 ┌─x─┬─s───────┐
 │ 1 │ (1,'Z') │
 │ 2 │ (1,'z') │
@@ -228,7 +239,7 @@ SELECT * FROM collate_test ORDER BY s ASC COLLATE 'en';
 
 Result:
 
-```text
+```response
 ┌─x─┬─s───────┐
 │ 3 │ (1,'a') │
 │ 5 │ (1,'A') │
@@ -250,7 +261,7 @@ Running a query may use more memory than `max_bytes_before_external_sort`. For t
 
 External sorting works much less effectively than sorting in RAM.
 
-## Optimization of Data Reading {#optimize_read_in_order}
+## Optimization of Data Reading {#optimization-of-data-reading}
 
  If `ORDER BY` expression has a prefix that coincides with the table sorting key, you can optimize the query by using the [optimize_read_in_order](../../../operations/settings/settings.md#optimize_read_in_order) setting.
 
@@ -264,14 +275,15 @@ Consider disabling `optimize_read_in_order` manually, when running queries that 
 
 Optimization is supported in the following table engines:
 
-- [MergeTree](../../../engines/table-engines/mergetree-family/mergetree.md)
-- [Merge](../../../engines/table-engines/special/merge.md), [Buffer](../../../engines/table-engines/special/buffer.md), and [MaterializedView](../../../engines/table-engines/special/materializedview.md) table engines over `MergeTree`-engine tables
+- [MergeTree](../../../engines/table-engines/mergetree-family/mergetree.md) (including [materialized views](../../../sql-reference/statements/create/view.md#materialized-view)),
+- [Merge](../../../engines/table-engines/special/merge.md),
+- [Buffer](../../../engines/table-engines/special/buffer.md)
 
 In `MaterializedView`-engine tables the optimization works with views like `SELECT ... FROM merge_tree_table ORDER BY pk`. But it is not supported in the queries like `SELECT ... FROM view ORDER BY pk` if the view query does not have the `ORDER BY` clause.
 
-## ORDER BY Expr WITH FILL Modifier {#orderby-with-fill}
+## ORDER BY Expr WITH FILL Modifier {#order-by-expr-with-fill-modifier}
 
-This modifier also can be combined with [LIMIT … WITH TIES modifier](../../../sql-reference/statements/select/limit.md#limit-with-ties).
+This modifier also can be combined with [LIMIT ... WITH TIES modifier](../../../sql-reference/statements/select/limit.md#limit-with-ties).
 
 `WITH FILL` modifier can be set after `ORDER BY expr` with optional `FROM expr`, `TO expr` and `STEP expr` parameters.
 All missed values of `expr` column will be filled sequentially and other columns will be filled as defaults.
@@ -279,14 +291,17 @@ All missed values of `expr` column will be filled sequentially and other columns
 To fill multiple columns, add `WITH FILL` modifier with optional parameters after each field name in `ORDER BY` section.
 
 ``` sql
-ORDER BY expr [WITH FILL] [FROM const_expr] [TO const_expr] [STEP const_numeric_expr], ... exprN [WITH FILL] [FROM expr] [TO expr] [STEP numeric_expr]
+ORDER BY expr [WITH FILL] [FROM const_expr] [TO const_expr] [STEP const_numeric_expr] [STALENESS const_numeric_expr], ... exprN [WITH FILL] [FROM expr] [TO expr] [STEP numeric_expr] [STALENESS numeric_expr]
+[INTERPOLATE [(col [AS expr], ... colN [AS exprN])]]
 ```
 
 `WITH FILL` can be applied for fields with Numeric (all kinds of float, decimal, int) or Date/DateTime types. When applied for `String` fields, missed values are filled with empty strings.
 When `FROM const_expr` not defined sequence of filling use minimal `expr` field value from `ORDER BY`.
 When `TO const_expr` not defined sequence of filling use maximum `expr` field value from `ORDER BY`.
-When `STEP const_numeric_expr` defined then `const_numeric_expr` interprets `as is` for numeric types as `days` for Date type and as `seconds` for DateTime type.
+When `STEP const_numeric_expr` defined then `const_numeric_expr` interprets `as is` for numeric types, as `days` for Date type, as `seconds` for DateTime type. It also supports [INTERVAL](/sql-reference/data-types/special-data-types/interval/) data type representing time and date intervals.
 When `STEP const_numeric_expr` omitted then sequence of filling use `1.0` for numeric type, `1 day` for Date type and `1 second` for DateTime type.
+When `STALENESS const_numeric_expr` is defined, the query will generate rows until the difference from the previous row in the original data exceeds `const_numeric_expr`.
+`INTERPOLATE` can be applied to columns not participating in `ORDER BY WITH FILL`. Such columns are filled based on previous fields values by applying `expr`. If `expr` is not present will repeat previous value. Omitted list will result in including all allowed columns.
 
 Example of a query without `WITH FILL`:
 
@@ -366,7 +381,7 @@ Result:
 └────────────┴────────────┴──────────┘
 ```
 
-Field `d1` does not fill in and use the default value cause we do not have repeated values for `d2` value, and the sequence for `d1` can’t be properly calculated.
+Field `d1` does not fill in and use the default value cause we do not have repeated values for `d2` value, and the sequence for `d1` can't be properly calculated.
 
 The following query with the changed field in `ORDER BY`:
 
@@ -402,4 +417,251 @@ Result:
 └────────────┴────────────┴──────────┘
 ```
 
-[Original article](https://clickhouse.com/docs/en/sql-reference/statements/select/order-by/) <!--hide-->
+The following query uses the `INTERVAL` data type of 1 day for each data filled on column `d1`:
+
+``` sql
+SELECT
+    toDate((number * 10) * 86400) AS d1,
+    toDate(number * 86400) AS d2,
+    'original' AS source
+FROM numbers(10)
+WHERE (number % 3) = 1
+ORDER BY
+    d1 WITH FILL STEP INTERVAL 1 DAY,
+    d2 WITH FILL;
+```
+
+Result:
+```response
+┌─────────d1─┬─────────d2─┬─source───┐
+│ 1970-01-11 │ 1970-01-02 │ original │
+│ 1970-01-12 │ 1970-01-01 │          │
+│ 1970-01-13 │ 1970-01-01 │          │
+│ 1970-01-14 │ 1970-01-01 │          │
+│ 1970-01-15 │ 1970-01-01 │          │
+│ 1970-01-16 │ 1970-01-01 │          │
+│ 1970-01-17 │ 1970-01-01 │          │
+│ 1970-01-18 │ 1970-01-01 │          │
+│ 1970-01-19 │ 1970-01-01 │          │
+│ 1970-01-20 │ 1970-01-01 │          │
+│ 1970-01-21 │ 1970-01-01 │          │
+│ 1970-01-22 │ 1970-01-01 │          │
+│ 1970-01-23 │ 1970-01-01 │          │
+│ 1970-01-24 │ 1970-01-01 │          │
+│ 1970-01-25 │ 1970-01-01 │          │
+│ 1970-01-26 │ 1970-01-01 │          │
+│ 1970-01-27 │ 1970-01-01 │          │
+│ 1970-01-28 │ 1970-01-01 │          │
+│ 1970-01-29 │ 1970-01-01 │          │
+│ 1970-01-30 │ 1970-01-01 │          │
+│ 1970-01-31 │ 1970-01-01 │          │
+│ 1970-02-01 │ 1970-01-01 │          │
+│ 1970-02-02 │ 1970-01-01 │          │
+│ 1970-02-03 │ 1970-01-01 │          │
+│ 1970-02-04 │ 1970-01-01 │          │
+│ 1970-02-05 │ 1970-01-01 │          │
+│ 1970-02-06 │ 1970-01-01 │          │
+│ 1970-02-07 │ 1970-01-01 │          │
+│ 1970-02-08 │ 1970-01-01 │          │
+│ 1970-02-09 │ 1970-01-01 │          │
+│ 1970-02-10 │ 1970-01-05 │ original │
+│ 1970-02-11 │ 1970-01-01 │          │
+│ 1970-02-12 │ 1970-01-01 │          │
+│ 1970-02-13 │ 1970-01-01 │          │
+│ 1970-02-14 │ 1970-01-01 │          │
+│ 1970-02-15 │ 1970-01-01 │          │
+│ 1970-02-16 │ 1970-01-01 │          │
+│ 1970-02-17 │ 1970-01-01 │          │
+│ 1970-02-18 │ 1970-01-01 │          │
+│ 1970-02-19 │ 1970-01-01 │          │
+│ 1970-02-20 │ 1970-01-01 │          │
+│ 1970-02-21 │ 1970-01-01 │          │
+│ 1970-02-22 │ 1970-01-01 │          │
+│ 1970-02-23 │ 1970-01-01 │          │
+│ 1970-02-24 │ 1970-01-01 │          │
+│ 1970-02-25 │ 1970-01-01 │          │
+│ 1970-02-26 │ 1970-01-01 │          │
+│ 1970-02-27 │ 1970-01-01 │          │
+│ 1970-02-28 │ 1970-01-01 │          │
+│ 1970-03-01 │ 1970-01-01 │          │
+│ 1970-03-02 │ 1970-01-01 │          │
+│ 1970-03-03 │ 1970-01-01 │          │
+│ 1970-03-04 │ 1970-01-01 │          │
+│ 1970-03-05 │ 1970-01-01 │          │
+│ 1970-03-06 │ 1970-01-01 │          │
+│ 1970-03-07 │ 1970-01-01 │          │
+│ 1970-03-08 │ 1970-01-01 │          │
+│ 1970-03-09 │ 1970-01-01 │          │
+│ 1970-03-10 │ 1970-01-01 │          │
+│ 1970-03-11 │ 1970-01-01 │          │
+│ 1970-03-12 │ 1970-01-08 │ original │
+└────────────┴────────────┴──────────┘
+```
+
+Example of a query without `STALENESS`:
+
+``` sql
+SELECT number as key, 5 * number value, 'original' AS source
+FROM numbers(16) WHERE key % 5 == 0
+ORDER BY key WITH FILL;
+```
+
+Result:
+
+``` text
+    ┌─key─┬─value─┬─source───┐
+ 1. │   0 │     0 │ original │
+ 2. │   1 │     0 │          │
+ 3. │   2 │     0 │          │
+ 4. │   3 │     0 │          │
+ 5. │   4 │     0 │          │
+ 6. │   5 │    25 │ original │
+ 7. │   6 │     0 │          │
+ 8. │   7 │     0 │          │
+ 9. │   8 │     0 │          │
+10. │   9 │     0 │          │
+11. │  10 │    50 │ original │
+12. │  11 │     0 │          │
+13. │  12 │     0 │          │
+14. │  13 │     0 │          │
+15. │  14 │     0 │          │
+16. │  15 │    75 │ original │
+    └─────┴───────┴──────────┘
+```
+
+Same query after applying `STALENESS 3`:
+
+``` sql
+SELECT number as key, 5 * number value, 'original' AS source
+FROM numbers(16) WHERE key % 5 == 0
+ORDER BY key WITH FILL STALENESS 3;
+```
+
+Result:
+
+``` text
+    ┌─key─┬─value─┬─source───┐
+ 1. │   0 │     0 │ original │
+ 2. │   1 │     0 │          │
+ 3. │   2 │     0 │          │
+ 4. │   5 │    25 │ original │
+ 5. │   6 │     0 │          │
+ 6. │   7 │     0 │          │
+ 7. │  10 │    50 │ original │
+ 8. │  11 │     0 │          │
+ 9. │  12 │     0 │          │
+10. │  15 │    75 │ original │
+11. │  16 │     0 │          │
+12. │  17 │     0 │          │
+    └─────┴───────┴──────────┘
+```
+
+Example of a query without `INTERPOLATE`:
+
+``` sql
+SELECT n, source, inter FROM (
+   SELECT toFloat32(number % 10) AS n, 'original' AS source, number as inter
+   FROM numbers(10) WHERE number % 3 = 1
+) ORDER BY n WITH FILL FROM 0 TO 5.51 STEP 0.5;
+```
+
+Result:
+
+``` text
+┌───n─┬─source───┬─inter─┐
+│   0 │          │     0 │
+│ 0.5 │          │     0 │
+│   1 │ original │     1 │
+│ 1.5 │          │     0 │
+│   2 │          │     0 │
+│ 2.5 │          │     0 │
+│   3 │          │     0 │
+│ 3.5 │          │     0 │
+│   4 │ original │     4 │
+│ 4.5 │          │     0 │
+│   5 │          │     0 │
+│ 5.5 │          │     0 │
+│   7 │ original │     7 │
+└─────┴──────────┴───────┘
+```
+
+Same query after applying `INTERPOLATE`:
+
+``` sql
+SELECT n, source, inter FROM (
+   SELECT toFloat32(number % 10) AS n, 'original' AS source, number as inter
+   FROM numbers(10) WHERE number % 3 = 1
+) ORDER BY n WITH FILL FROM 0 TO 5.51 STEP 0.5 INTERPOLATE (inter AS inter + 1);
+```
+
+Result:
+
+``` text
+┌───n─┬─source───┬─inter─┐
+│   0 │          │     0 │
+│ 0.5 │          │     0 │
+│   1 │ original │     1 │
+│ 1.5 │          │     2 │
+│   2 │          │     3 │
+│ 2.5 │          │     4 │
+│   3 │          │     5 │
+│ 3.5 │          │     6 │
+│   4 │ original │     4 │
+│ 4.5 │          │     5 │
+│   5 │          │     6 │
+│ 5.5 │          │     7 │
+│   7 │ original │     7 │
+└─────┴──────────┴───────┘
+```
+
+## Filling grouped by sorting prefix {#filling-grouped-by-sorting-prefix}
+
+It can be useful to fill rows which have the same values in particular columns independently, - a good example is filling missing values in time series.
+Assume there is the following time series table:
+``` sql
+CREATE TABLE timeseries
+(
+    `sensor_id` UInt64,
+    `timestamp` DateTime64(3, 'UTC'),
+    `value` Float64
+)
+ENGINE = Memory;
+
+SELECT * FROM timeseries;
+
+┌─sensor_id─┬───────────────timestamp─┬─value─┐
+│       234 │ 2021-12-01 00:00:03.000 │     3 │
+│       432 │ 2021-12-01 00:00:01.000 │     1 │
+│       234 │ 2021-12-01 00:00:07.000 │     7 │
+│       432 │ 2021-12-01 00:00:05.000 │     5 │
+└───────────┴─────────────────────────┴───────┘
+```
+And we'd like to fill missing values for each sensor independently with 1 second interval.
+The way to achieve it is to use `sensor_id` column as sorting prefix for filling column `timestamp`:
+```sql
+SELECT *
+FROM timeseries
+ORDER BY
+    sensor_id,
+    timestamp WITH FILL
+INTERPOLATE ( value AS 9999 )
+
+┌─sensor_id─┬───────────────timestamp─┬─value─┐
+│       234 │ 2021-12-01 00:00:03.000 │     3 │
+│       234 │ 2021-12-01 00:00:04.000 │  9999 │
+│       234 │ 2021-12-01 00:00:05.000 │  9999 │
+│       234 │ 2021-12-01 00:00:06.000 │  9999 │
+│       234 │ 2021-12-01 00:00:07.000 │     7 │
+│       432 │ 2021-12-01 00:00:01.000 │     1 │
+│       432 │ 2021-12-01 00:00:02.000 │  9999 │
+│       432 │ 2021-12-01 00:00:03.000 │  9999 │
+│       432 │ 2021-12-01 00:00:04.000 │  9999 │
+│       432 │ 2021-12-01 00:00:05.000 │     5 │
+└───────────┴─────────────────────────┴───────┘
+```
+Here, the `value` column was interpolated with `9999` just to make filled rows more noticeable.
+This behavior is controlled by setting `use_with_fill_by_sorting_prefix` (enabled by default)
+
+## Related content {#related-content}
+
+- Blog: [Working with time series data in ClickHouse](https://clickhouse.com/blog/working-with-time-series-data-and-functions-ClickHouse)

@@ -1,3 +1,4 @@
+#include <DataTypes/IDataType.h>
 #include <Functions/IFunction.h>
 #include <Functions/FunctionFactory.h>
 #include <Core/Field.h>
@@ -56,7 +57,7 @@ public:
 
 }
 
-void registerFunctionDefaultValueOfArgumentType(FunctionFactory & factory)
+REGISTER_FUNCTION(DefaultValueOfArgumentType)
 {
     factory.registerFunction<FunctionDefaultValueOfArgumentType>();
 }

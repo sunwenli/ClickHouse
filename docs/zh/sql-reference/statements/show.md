@@ -1,6 +1,7 @@
 ---
-toc_priority: 38
-toc_title: SHOW
+slug: /zh/sql-reference/statements/show
+sidebar_position: 38
+sidebar_label: SHOW
 ---
 
 # SHOW 查询 {#show-queries}
@@ -12,6 +13,7 @@ SHOW CREATE [TEMPORARY] [TABLE|DICTIONARY] [db.]table [INTO OUTFILE filename] [F
 ```
 返回单个字符串类型的 ‘statement’列，其中只包含了一个值 - 用来创建指定对象的 `CREATE` 语句。
 
+注意，如果使用该查询去获取系统表的 `CREATE` 语句，你得到的是一个虚构的语句，仅用来展示系统的表结构，而不能实际创建表。
 
 ## SHOW DATABASES {#show-databases}
 
@@ -108,7 +110,7 @@ SHOW DICTIONARIES FROM db LIKE '%reg%' LIMIT 2
 ### 语法 {#show-grants-syntax}
 
 ``` sql
-SHOW GRANTS [FOR user]
+SHOW GRANTS [FOR user1 [, user2 ...]] [WITH IMPLICIT] [FINAL]
 ```
 
 如果未指定用户，输出当前用户的权限
@@ -127,7 +129,7 @@ SHOW CREATE USER [name | CURRENT_USER]
 
 ## SHOW CREATE ROLE {#show-create-role-statement}
 
-显示 [role creation](../../sql-reference/statements/create.md#create-role-statement) 中用到的参数。
+显示 [role creation](/sql-reference/statements/create/role) 中用到的参数。
 
 ### 语法 {#show-create-role-syntax}
 
@@ -164,5 +166,3 @@ SHOW CREATE QUOTA [name | CURRENT]
 ``` sql
 SHOW CREATE [SETTINGS] PROFILE name
 ```
-
-[原始文档](https://clickhouse.com/docs/en/query_language/show/) <!--hide-->

@@ -1,42 +1,39 @@
-#include <DataTypes/Serializations/SerializationAggregateFunction.h>
-
-#include <IO/WriteHelpers.h>
-
+#include <AggregateFunctions/IAggregateFunction.h>
 #include <Columns/ColumnAggregateFunction.h>
-
-#include <Common/typeid_cast.h>
-#include <Common/assert_cast.h>
-#include <Common/AlignedBuffer.h>
-
+#include <DataTypes/Serializations/SerializationAggregateFunction.h>
 #include <Formats/FormatSettings.h>
-#include <Formats/ProtobufReader.h>
-#include <Formats/ProtobufWriter.h>
-#include <IO/WriteBufferFromString.h>
 #include <IO/Operators.h>
+#include <IO/ReadBufferFromString.h>
+#include <IO/WriteBufferFromString.h>
+#include <IO/WriteHelpers.h>
+#include <Common/AlignedBuffer.h>
+#include <Common/Arena.h>
+#include <Common/assert_cast.h>
+#include <Common/typeid_cast.h>
 
 namespace DB
 {
 
-void SerializationAggregateFunction::serializeBinary(const Field & field, WriteBuffer & ostr) const
+void SerializationAggregateFunction::serializeBinary(const Field & field, WriteBuffer & ostr, const FormatSettings &) const
 {
-    const AggregateFunctionStateData & state = get<const AggregateFunctionStateData &>(field);
+    const AggregateFunctionStateData & state = field.safeGet<AggregateFunctionStateData>();
     writeBinary(state.data, ostr);
 }
 
-void SerializationAggregateFunction::deserializeBinary(Field & field, ReadBuffer & istr) const
+void SerializationAggregateFunction::deserializeBinary(Field & field, ReadBuffer & istr, const FormatSettings &) const
 {
     field = AggregateFunctionStateData();
-    AggregateFunctionStateData & s = get<AggregateFunctionStateData &>(field);
+    AggregateFunctionStateData & s = field.safeGet<AggregateFunctionStateData>();
     readBinary(s.data, istr);
     s.name = type_name;
 }
 
-void SerializationAggregateFunction::serializeBinary(const IColumn & column, size_t row_num, WriteBuffer & ostr) const
+void SerializationAggregateFunction::serializeBinary(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings &) const
 {
-    function->serialize(assert_cast<const ColumnAggregateFunction &>(column).getData()[row_num], ostr);
+    function->serialize(assert_cast<const ColumnAggregateFunction &>(column).getData()[row_num], ostr, version);
 }
 
-void SerializationAggregateFunction::deserializeBinary(IColumn & column, ReadBuffer & istr) const
+void SerializationAggregateFunction::deserializeBinary(IColumn & column, ReadBuffer & istr, const FormatSettings &) const
 {
     ColumnAggregateFunction & column_concrete = assert_cast<ColumnAggregateFunction &>(column);
 
@@ -47,7 +44,7 @@ void SerializationAggregateFunction::deserializeBinary(IColumn & column, ReadBuf
     function->create(place);
     try
     {
-        function->deserialize(place, istr, &arena);
+        function->deserialize(place, istr, version, &arena);
     }
     catch (...)
     {
@@ -63,14 +60,11 @@ void SerializationAggregateFunction::serializeBinaryBulk(const IColumn & column,
     const ColumnAggregateFunction & real_column = typeid_cast<const ColumnAggregateFunction &>(column);
     const ColumnAggregateFunction::Container & vec = real_column.getData();
 
-    ColumnAggregateFunction::Container::const_iterator it = vec.begin() + offset;
-    ColumnAggregateFunction::Container::const_iterator end = limit ? it + limit : vec.end();
+    size_t end = vec.size();
+    if (limit)
+        end = std::min(end, offset + limit);
 
-    if (end > vec.end())
-        end = vec.end();
-
-    for (; it != end; ++it)
-        function->serialize(*it, ostr);
+    function->serializeBatch(vec, offset, end, ostr, version);
 }
 
 void SerializationAggregateFunction::deserializeBinaryBulk(IColumn & column, ReadBuffer & istr, size_t limit, double /*avg_value_size_hint*/) const
@@ -79,43 +73,27 @@ void SerializationAggregateFunction::deserializeBinaryBulk(IColumn & column, Rea
     ColumnAggregateFunction::Container & vec = real_column.getData();
 
     Arena & arena = real_column.createOrGetArena();
-    real_column.set(function);
+    real_column.set(function, version);
     vec.reserve(vec.size() + limit);
 
     size_t size_of_state = function->sizeOfData();
     size_t align_of_state = function->alignOfData();
 
-    for (size_t i = 0; i < limit; ++i)
-    {
-        if (istr.eof())
-            break;
+    /// Adjust the size of state to make all states aligned in vector.
+    size_t total_size_of_state = (size_of_state + align_of_state - 1) / align_of_state * align_of_state;
+    char * place = arena.alignedAlloc(total_size_of_state * limit, align_of_state);
 
-        AggregateDataPtr place = arena.alignedAlloc(size_of_state, align_of_state);
-
-        function->create(place);
-
-        try
-        {
-            function->deserialize(place, istr, &arena);
-        }
-        catch (...)
-        {
-            function->destroy(place);
-            throw;
-        }
-
-        vec.push_back(place);
-    }
+    function->createAndDeserializeBatch(vec, place, total_size_of_state, limit, istr, version, &arena);
 }
 
-static String serializeToString(const AggregateFunctionPtr & function, const IColumn & column, size_t row_num)
+static String serializeToString(const AggregateFunctionPtr & function, const IColumn & column, size_t row_num, size_t version)
 {
     WriteBufferFromOwnString buffer;
-    function->serialize(assert_cast<const ColumnAggregateFunction &>(column).getData()[row_num], buffer);
+    function->serialize(assert_cast<const ColumnAggregateFunction &>(column).getData()[row_num], buffer, version);
     return buffer.str();
 }
 
-static void deserializeFromString(const AggregateFunctionPtr & function, IColumn & column, const String & s)
+static void deserializeFromString(const AggregateFunctionPtr & function, IColumn & column, const String & s, size_t version)
 {
     ColumnAggregateFunction & column_concrete = assert_cast<ColumnAggregateFunction &>(column);
 
@@ -128,7 +106,7 @@ static void deserializeFromString(const AggregateFunctionPtr & function, IColumn
     try
     {
         ReadBufferFromString istr(s);
-        function->deserialize(place, istr, &arena);
+        function->deserialize(place, istr, version, &arena);
     }
     catch (...)
     {
@@ -141,27 +119,27 @@ static void deserializeFromString(const AggregateFunctionPtr & function, IColumn
 
 void SerializationAggregateFunction::serializeText(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings &) const
 {
-    writeString(serializeToString(function, column, row_num), ostr);
+    writeString(serializeToString(function, column, row_num, version), ostr);
 }
 
 
 void SerializationAggregateFunction::serializeTextEscaped(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings &) const
 {
-    writeEscapedString(serializeToString(function, column, row_num), ostr);
+    writeEscapedString(serializeToString(function, column, row_num, version), ostr);
 }
 
 
-void SerializationAggregateFunction::deserializeTextEscaped(IColumn & column, ReadBuffer & istr, const FormatSettings &) const
+void SerializationAggregateFunction::deserializeTextEscaped(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const
 {
     String s;
-    readEscapedString(s, istr);
-    deserializeFromString(function, column, s);
+    settings.tsv.crlf_end_of_line_input ? readEscapedStringCRLF(s, istr) : readEscapedString(s, istr);
+    deserializeFromString(function, column, s, version);
 }
 
 
 void SerializationAggregateFunction::serializeTextQuoted(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings &) const
 {
-    writeQuotedString(serializeToString(function, column, row_num), ostr);
+    writeQuotedString(serializeToString(function, column, row_num, version), ostr);
 }
 
 
@@ -169,7 +147,7 @@ void SerializationAggregateFunction::deserializeTextQuoted(IColumn & column, Rea
 {
     String s;
     readQuotedStringWithSQLStyle(s, istr);
-    deserializeFromString(function, column, s);
+    deserializeFromString(function, column, s, version);
 }
 
 
@@ -177,33 +155,33 @@ void SerializationAggregateFunction::deserializeWholeText(IColumn & column, Read
 {
     String s;
     readStringUntilEOF(s, istr);
-    deserializeFromString(function, column, s);
+    deserializeFromString(function, column, s, version);
 }
 
 
 void SerializationAggregateFunction::serializeTextJSON(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings & settings) const
 {
-    writeJSONString(serializeToString(function, column, row_num), ostr, settings);
+    writeJSONString(serializeToString(function, column, row_num, version), ostr, settings);
 }
 
 
-void SerializationAggregateFunction::deserializeTextJSON(IColumn & column, ReadBuffer & istr, const FormatSettings &) const
+void SerializationAggregateFunction::deserializeTextJSON(IColumn & column, ReadBuffer & istr, const FormatSettings & settings) const
 {
     String s;
-    readJSONString(s, istr);
-    deserializeFromString(function, column, s);
+    readJSONString(s, istr, settings.json);
+    deserializeFromString(function, column, s, version);
 }
 
 
 void SerializationAggregateFunction::serializeTextXML(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings &) const
 {
-    writeXMLStringForTextElement(serializeToString(function, column, row_num), ostr);
+    writeXMLStringForTextElement(serializeToString(function, column, row_num, version), ostr);
 }
 
 
 void SerializationAggregateFunction::serializeTextCSV(const IColumn & column, size_t row_num, WriteBuffer & ostr, const FormatSettings &) const
 {
-    writeCSV(serializeToString(function, column, row_num), ostr);
+    writeCSV(serializeToString(function, column, row_num, version), ostr);
 }
 
 
@@ -211,7 +189,7 @@ void SerializationAggregateFunction::deserializeTextCSV(IColumn & column, ReadBu
 {
     String s;
     readCSV(s, istr, settings.csv);
-    deserializeFromString(function, column, s);
+    deserializeFromString(function, column, s, version);
 }
 
 }

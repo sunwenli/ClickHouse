@@ -4,25 +4,23 @@
 
 #include <memory>
 #include <vector>
-#include <Interpreters/ExpressionActions.h>
 #include <Interpreters/AggregateDescription.h>
 #include <Parsers/IAST_fwd.h>
 #include <Storages/ColumnsDescription.h>
 
-#include <boost/multi_index/member.hpp>
-#include <boost/multi_index/ordered_index.hpp>
-#include <boost/multi_index/sequenced_index.hpp>
-#include <boost/multi_index_container.hpp>
-
 namespace DB
 {
+
+class ExpressionActions;
+using ExpressionActionsPtr = std::shared_ptr<ExpressionActions>;
+
 struct StorageInMemoryMetadata;
 using StorageMetadataPtr = std::shared_ptr<const StorageInMemoryMetadata>;
 
 /// Description of projections for Storage
 struct ProjectionDescription
 {
-    enum class Type
+    enum class Type : uint8_t
     {
         Normal,
         Aggregate,
@@ -56,17 +54,25 @@ struct ProjectionDescription
 
     size_t key_size = 0;
 
-    bool is_minmax_count_projection = false;
-
     /// If a primary key expression is used in the minmax_count projection, store the name of max expression.
     String primary_key_max_column_name;
+
+    /// Stores partition value indices of partition value row. It's needed because identical
+    /// partition columns will appear only once in projection block, but every column will have a
+    /// value in the partition value row. This vector holds the biggest value index of give
+    /// partition columns.
+    std::vector<size_t> partition_value_indices;
 
     /// Parse projection from definition AST
     static ProjectionDescription
     getProjectionFromAST(const ASTPtr & definition_ast, const ColumnsDescription & columns, ContextPtr query_context);
 
     static ProjectionDescription getMinMaxCountProjection(
-        const ColumnsDescription & columns, const Names & minmax_columns, const ASTs & primary_key_asts, ContextPtr query_context);
+        const ColumnsDescription & columns,
+        ASTPtr partition_columns,
+        const Names & minmax_columns,
+        const ASTs & primary_key_asts,
+        ContextPtr query_context);
 
     ProjectionDescription() = default;
 
@@ -96,7 +102,7 @@ struct ProjectionDescription
 using ProjectionDescriptionRawPtr = const ProjectionDescription *;
 
 /// All projections in storage
-struct ProjectionsDescription
+struct ProjectionsDescription : public IHints<>
 {
     ProjectionsDescription() = default;
     ProjectionsDescription(ProjectionsDescription && other) = default;
@@ -127,6 +133,8 @@ struct ProjectionsDescription
     void
     add(ProjectionDescription && projection, const String & after_projection = String(), bool first = false, bool if_not_exists = false);
     void remove(const String & projection_name, bool if_exists);
+
+    std::vector<String> getAllRegisteredNames() const override;
 
 private:
     /// Keep the sequence of columns and allow to lookup by name.

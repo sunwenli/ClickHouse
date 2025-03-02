@@ -9,7 +9,7 @@
 
 namespace DB
 {
-class AccessControlManager;
+class AccessControl;
 struct SettingsProfile;
 using SettingsProfilePtr = std::shared_ptr<const SettingsProfile>;
 struct SettingsProfilesInfo;
@@ -18,7 +18,7 @@ struct SettingsProfilesInfo;
 class SettingsProfilesCache
 {
 public:
-    SettingsProfilesCache(const AccessControlManager & manager_);
+    explicit SettingsProfilesCache(const AccessControl & access_control_);
     ~SettingsProfilesCache();
 
     void setDefaultProfileName(const String & default_profile_name);
@@ -37,9 +37,13 @@ private:
     void profileRemoved(const UUID & profile_id);
     void mergeSettingsAndConstraints();
     void mergeSettingsAndConstraintsFor(EnabledSettings & enabled) const;
-    void substituteProfiles(SettingsProfileElements & elements, std::vector<UUID> & substituted_profiles, std::unordered_map<UUID, String> & names_of_substituted_profiles) const;
 
-    const AccessControlManager & manager;
+    void substituteProfiles(SettingsProfileElements & elements,
+        std::vector<UUID> & profiles,
+        std::vector<UUID> & substituted_profiles,
+        std::unordered_map<UUID, String> & names_of_substituted_profiles) const;
+
+    const AccessControl & access_control;
     std::unordered_map<UUID, SettingsProfilePtr> all_profiles;
     std::unordered_map<String, UUID> profiles_by_name;
     bool all_profiles_read = false;

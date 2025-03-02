@@ -13,17 +13,19 @@ namespace DB
 
 bool ParserCreateFunctionQuery::parseImpl(IParser::Pos & pos, ASTPtr & node, Expected & expected)
 {
-    ParserKeyword s_create("CREATE");
-    ParserKeyword s_function("FUNCTION");
-    ParserKeyword s_or_replace("OR REPLACE");
-    ParserKeyword s_if_not_exists("IF NOT EXISTS");
+    ParserKeyword s_create(Keyword::CREATE);
+    ParserKeyword s_function(Keyword::FUNCTION);
+    ParserKeyword s_or_replace(Keyword::OR_REPLACE);
+    ParserKeyword s_if_not_exists(Keyword::IF_NOT_EXISTS);
+    ParserKeyword s_on(Keyword::ON);
     ParserIdentifier function_name_p;
-    ParserKeyword s_as("AS");
-    ParserLambdaExpression lambda_p;
+    ParserKeyword s_as(Keyword::AS);
+    ParserExpression lambda_p;
 
     ASTPtr function_name;
     ASTPtr function_core;
 
+    String cluster_str;
     bool or_replace = false;
     bool if_not_exists = false;
 
@@ -42,6 +44,12 @@ bool ParserCreateFunctionQuery::parseImpl(IParser::Pos & pos, ASTPtr & node, Exp
     if (!function_name_p.parse(pos, function_name, expected))
         return false;
 
+    if (s_on.ignore(pos, expected))
+    {
+        if (!ASTQueryWithOnCluster::parse(pos, cluster_str, expected))
+            return false;
+    }
+
     if (!s_as.ignore(pos, expected))
         return false;
 
@@ -51,10 +59,15 @@ bool ParserCreateFunctionQuery::parseImpl(IParser::Pos & pos, ASTPtr & node, Exp
     auto create_function_query = std::make_shared<ASTCreateFunctionQuery>();
     node = create_function_query;
 
-    create_function_query->function_name = function_name->as<ASTIdentifier &>().name();
+    create_function_query->function_name = function_name;
+    create_function_query->children.push_back(function_name);
+
     create_function_query->function_core = function_core;
+    create_function_query->children.push_back(function_core);
+
     create_function_query->or_replace = or_replace;
     create_function_query->if_not_exists = if_not_exists;
+    create_function_query->cluster = std::move(cluster_str);
 
     return true;
 }

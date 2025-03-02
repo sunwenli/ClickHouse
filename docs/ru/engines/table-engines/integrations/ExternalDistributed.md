@@ -1,6 +1,7 @@
 ---
-toc_priority: 12
-toc_title: ExternalDistributed
+slug: /ru/engines/table-engines/integrations/ExternalDistributed
+sidebar_position: 12
+sidebar_label: ExternalDistributed
 ---
 
 # ExternalDistributed {#externaldistributed}
@@ -18,12 +19,12 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
 ) ENGINE = ExternalDistributed('engine', 'host:port', 'database', 'table', 'user', 'password');
 ```
 
-Смотрите подробное описание запроса [CREATE TABLE](../../../sql-reference/statements/create/table.md#create-table-query).
+Смотрите подробное описание запроса [CREATE TABLE](/sql-reference/statements/create/table).
 
 Структура таблицы может отличаться от структуры исходной таблицы:
 
 -   Имена столбцов должны быть такими же, как в исходной таблице, но можно использовать только некоторые из этих столбцов и в любом порядке.
--   Типы столбцов могут отличаться от типов в исходной таблице. ClickHouse пытается [привести](../../../sql-reference/functions/type-conversion-functions.md#type_conversion_function-cast) значения к типам данных ClickHouse.
+-   Типы столбцов могут отличаться от типов в исходной таблице. ClickHouse пытается [привести](/sql-reference/functions/type-conversion-functions#cast) значения к типам данных ClickHouse.
 
 **Параметры движка**
 

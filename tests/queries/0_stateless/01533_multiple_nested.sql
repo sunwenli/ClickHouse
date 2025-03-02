@@ -1,6 +1,10 @@
+-- Tags: no-object-storage, no-random-merge-tree-settings, no-parallel
+-- no-s3 because read FileOpen metric
 DROP TABLE IF EXISTS nested;
 
 SET flatten_nested = 0;
+SET use_uncompressed_cache = 0;
+SET local_filesystem_read_method='pread';
 
 CREATE TABLE nested
 (
@@ -32,8 +36,8 @@ SYSTEM DROP MARK CACHE;
 SELECT col1.a FROM nested FORMAT Null;
 
 -- 4 files: (col1.size0, col1.a) x2
-SYSTEM FLUSH LOGS;
-SELECT ProfileEvents['FileOpen']
+SYSTEM FLUSH LOGS query_log;
+SELECT ProfileEvents['FileOpen'] - ProfileEvents['CreatedReadBufferDirectIOFailed']
 FROM system.query_log
 WHERE (type = 'QueryFinish') AND (lower(query) LIKE lower('SELECT col1.a FROM %nested%'))
     AND event_date >= yesterday() AND current_database = currentDatabase();
@@ -42,8 +46,8 @@ SYSTEM DROP MARK CACHE;
 SELECT col3.n2.s FROM nested FORMAT Null;
 
 -- 6 files: (col3.size0, col3.n2.size1, col3.n2.s) x2
-SYSTEM FLUSH LOGS;
-SELECT ProfileEvents['FileOpen']
+SYSTEM FLUSH LOGS query_log;
+SELECT ProfileEvents['FileOpen'] - ProfileEvents['CreatedReadBufferDirectIOFailed']
 FROM system.query_log
 WHERE (type = 'QueryFinish') AND (lower(query) LIKE lower('SELECT col3.n2.s FROM %nested%'))
     AND event_date >= yesterday() AND current_database = currentDatabase();

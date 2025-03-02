@@ -1,7 +1,7 @@
 #include <IO/WriteBufferFromEncryptedFile.h>
+#include <Common/logger_useful.h>
 
 #if USE_SSL
-#include <Common/MemoryTracker.h>
 
 namespace DB
 {
@@ -12,8 +12,7 @@ WriteBufferFromEncryptedFile::WriteBufferFromEncryptedFile(
     const String & key_,
     const FileEncryption::Header & header_,
     size_t old_file_size)
-    : WriteBufferFromFileBase(buffer_size_, nullptr, 0)
-    , out(std::move(out_))
+    : WriteBufferDecorator<WriteBufferFromFileBase>(std::move(out_), buffer_size_, nullptr, 0)
     , header(header_)
     , flush_header(!old_file_size)
     , encryptor(header.algorithm, key_, header.init_vector)
@@ -23,32 +22,12 @@ WriteBufferFromEncryptedFile::WriteBufferFromEncryptedFile(
 
 WriteBufferFromEncryptedFile::~WriteBufferFromEncryptedFile()
 {
-    /// FIXME move final flush into the caller
-    MemoryTracker::LockExceptionInThread lock(VariableContext::Global);
-    finish();
+    /// That destructor could be call with finalized=false in case of exceptions.
+    if (!finalized)
+        LOG_INFO(log, "WriteBufferFromEncryptedFile is not finalized in destructor");
 }
 
-void WriteBufferFromEncryptedFile::finish()
-{
-    if (finished)
-        return;
-
-    try
-    {
-        finishImpl();
-        out->finalize();
-        finished = true;
-    }
-    catch (...)
-    {
-        /// Do not try to flush next time after exception.
-        out->position() = out->buffer().begin();
-        finished = true;
-        throw;
-    }
-}
-
-void WriteBufferFromEncryptedFile::finishImpl()
+void WriteBufferFromEncryptedFile::finalizeBefore()
 {
     /// If buffer has pending data - write it.
     next();
@@ -56,8 +35,6 @@ void WriteBufferFromEncryptedFile::finishImpl()
     /// Note that if there is no data to write an empty file will be written, even without the initialization vector
     /// (see nextImpl(): it writes the initialization vector only if there is some data ready to write).
     /// That's fine because DiskEncrypted allows files without initialization vectors when they're empty.
-
-    out->finalize();
 }
 
 void WriteBufferFromEncryptedFile::sync()

@@ -1,12 +1,13 @@
 #include <Parsers/ParserDictionary.h>
 
-#include <Parsers/ExpressionListParsers.h>
-#include <Parsers/ExpressionElementParsers.h>
-#include <Parsers/ASTFunctionWithKeyValueArguments.h>
-#include <Parsers/ASTExpressionList.h>
-#include <Parsers/ASTDictionary.h>
-#include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTCreateQuery.h>
+#include <Parsers/ASTDictionary.h>
+#include <Parsers/ASTExpressionList.h>
+#include <Parsers/ASTFunctionWithKeyValueArguments.h>
+#include <Parsers/ASTIdentifier.h>
+#include <Parsers/ASTLiteral.h>
+#include <Parsers/ExpressionElementParsers.h>
+#include <Parsers/ExpressionListParsers.h>
 #include <Parsers/ParserDictionaryAttributeDeclaration.h>
 
 #include <Poco/String.h>
@@ -32,7 +33,7 @@ bool ParserDictionaryLifetime::parseImpl(Pos & pos, ASTPtr & node, Expected & ex
         if (literal.value.getType() != Field::Types::UInt64)
             return false;
 
-        res->max_sec = literal.value.get<UInt64>();
+        res->max_sec = literal.value.safeGet<UInt64>();
         node = res;
         return true;
     }
@@ -57,10 +58,10 @@ bool ParserDictionaryLifetime::parseImpl(Pos & pos, ASTPtr & node, Expected & ex
             return false;
 
         if (pair.first == "min")
-            res->min_sec = literal->value.get<UInt64>();
+            res->min_sec = literal->value.safeGet<UInt64>();
         else if (pair.first == "max")
         {
-            res->max_sec = literal->value.get<UInt64>();
+            res->max_sec = literal->value.safeGet<UInt64>();
             initialized_max = true;
         }
         else
@@ -164,12 +165,12 @@ bool ParserDictionarySettings::parseImpl(Pos & pos, ASTPtr & node, Expected & ex
 
 bool ParserDictionary::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
 {
-    ParserKeyword primary_key_keyword("PRIMARY KEY");
-    ParserKeyword source_keyword("SOURCE");
-    ParserKeyword lifetime_keyword("LIFETIME");
-    ParserKeyword range_keyword("RANGE");
-    ParserKeyword layout_keyword("LAYOUT");
-    ParserKeyword settings_keyword("SETTINGS");
+    ParserKeyword primary_key_keyword(Keyword::PRIMARY_KEY);
+    ParserKeyword source_keyword(Keyword::SOURCE);
+    ParserKeyword lifetime_keyword(Keyword::LIFETIME);
+    ParserKeyword range_keyword(Keyword::RANGE);
+    ParserKeyword layout_keyword(Keyword::LAYOUT);
+    ParserKeyword settings_keyword(Keyword::SETTINGS);
     ParserToken open(TokenType::OpeningRoundBracket);
     ParserToken close(TokenType::ClosingRoundBracket);
     ParserFunctionWithKeyValueArguments key_value_pairs_p;
@@ -187,8 +188,19 @@ bool ParserDictionary::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
     ASTPtr ast_settings;
 
     /// Primary is required to be the first in dictionary definition
-    if (primary_key_keyword.ignore(pos) && !expression_list_p.parse(pos, primary_key, expected))
-        return false;
+    if (primary_key_keyword.ignore(pos, expected))
+    {
+        bool was_open = false;
+
+        if (open.ignore(pos, expected))
+            was_open = true;
+
+        if (!expression_list_p.parse(pos, primary_key, expected))
+            return false;
+
+        if (was_open && !close.ignore(pos, expected))
+            return false;
+    }
 
     /// Loop is used to avoid strict order of dictionary properties
     while (true)
@@ -196,13 +208,13 @@ bool ParserDictionary::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
         if (!ast_source && source_keyword.ignore(pos, expected))
         {
 
-            if (!open.ignore(pos))
+            if (!open.ignore(pos, expected))
                 return false;
 
             if (!key_value_pairs_p.parse(pos, ast_source, expected))
                 return false;
 
-            if (!close.ignore(pos))
+            if (!close.ignore(pos, expected))
                 return false;
 
             continue;
@@ -210,13 +222,13 @@ bool ParserDictionary::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
 
         if (!ast_lifetime && lifetime_keyword.ignore(pos, expected))
         {
-            if (!open.ignore(pos))
+            if (!open.ignore(pos, expected))
                 return false;
 
             if (!lifetime_p.parse(pos, ast_lifetime, expected))
                 return false;
 
-            if (!close.ignore(pos))
+            if (!close.ignore(pos, expected))
                 return false;
 
             continue;
@@ -224,13 +236,13 @@ bool ParserDictionary::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
 
         if (!ast_layout && layout_keyword.ignore(pos, expected))
         {
-            if (!open.ignore(pos))
+            if (!open.ignore(pos, expected))
                 return false;
 
             if (!layout_p.parse(pos, ast_layout, expected))
                 return false;
 
-            if (!close.ignore(pos))
+            if (!close.ignore(pos, expected))
                 return false;
 
             continue;
@@ -238,13 +250,13 @@ bool ParserDictionary::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
 
         if (!ast_range && range_keyword.ignore(pos, expected))
         {
-            if (!open.ignore(pos))
+            if (!open.ignore(pos, expected))
                 return false;
 
             if (!range_p.parse(pos, ast_range, expected))
                 return false;
 
-            if (!close.ignore(pos))
+            if (!close.ignore(pos, expected))
                 return false;
 
             continue;
@@ -252,13 +264,13 @@ bool ParserDictionary::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
 
         if (!ast_settings && settings_keyword.ignore(pos, expected))
         {
-            if (!open.ignore(pos))
+            if (!open.ignore(pos, expected))
                 return false;
 
             if (!settings_p.parse(pos, ast_settings, expected))
                 return false;
 
-            if (!close.ignore(pos))
+            if (!close.ignore(pos, expected))
                 return false;
 
             continue;

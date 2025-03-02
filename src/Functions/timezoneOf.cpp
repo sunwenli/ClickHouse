@@ -3,9 +3,8 @@
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypeDateTime.h>
-#include <base/DateLUTImpl.h>
+#include <Common/DateLUTImpl.h>
 #include <Core/Field.h>
-
 
 namespace DB
 {
@@ -21,7 +20,7 @@ namespace
 
 
 /** timezoneOf(x) - get the name of the timezone of DateTime data type.
-  * Example: Europe/Moscow.
+  * Example: Pacific/Pitcairn.
   */
 class FunctionTimezoneOf : public IFunction
 {
@@ -40,8 +39,12 @@ public:
 
         if (isDateTime(type_no_nullable) || isDateTime64(type_no_nullable))
             return std::make_shared<DataTypeString>();
-        else
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Bad argument for function {}, should be DateTime or DateTime64", name);
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Bad argument for function {}, should be DateTime or DateTime64", name);
+    }
+
+    DataTypePtr getReturnTypeForDefaultImplementationForDynamic() const override
+    {
+        return std::make_shared<DataTypeString>();
     }
 
     bool useDefaultImplementationForNulls() const override { return false; }
@@ -67,11 +70,10 @@ public:
 
 }
 
-void registerFunctionTimezoneOf(FunctionFactory & factory)
+REGISTER_FUNCTION(TimezoneOf)
 {
     factory.registerFunction<FunctionTimezoneOf>();
     factory.registerAlias("timeZoneOf", "timezoneOf");
 }
 
 }
-

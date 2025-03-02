@@ -1,10 +1,13 @@
 ---
-toc_priority: 127
+slug: /sql-reference/aggregate-functions/reference/groupbitxor
+sidebar_position: 153
+title: "groupBitXor"
+description: "Applies bit-wise `XOR` for series of numbers."
 ---
 
-# groupBitXor {#groupbitxor}
+# groupBitXor
 
-Applies bitwise `XOR` for series of numbers.
+Applies bit-wise `XOR` for series of numbers.
 
 ``` sql
 groupBitXor(expr)
@@ -12,11 +15,11 @@ groupBitXor(expr)
 
 **Arguments**
 
-`expr` – An expression that results in `UInt*` type.
+`expr` – An expression that results in `UInt*` or `Int*` type.
 
 **Return value**
 
-Value of the `UInt*` type.
+Value of the `UInt*` or `Int*` type.
 
 **Example**
 

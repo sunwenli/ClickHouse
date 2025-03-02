@@ -1,55 +1,16 @@
 #pragma once
 
+#include <Formats/FormatSettings.h>
+#include <Formats/IndexForNativeFormat.h>
 #include <Formats/MarkInCompressedFile.h>
 #include <Common/PODArray.h>
 #include <Core/Block.h>
+#include <Core/BlockMissingValues.h>
 
 namespace DB
 {
 
 class CompressedReadBufferFromFile;
-
-
-/** The Native format can contain a separately located index,
-  *  which allows you to understand where what column is located,
-  *  and skip unnecessary columns.
-  */
-
-/** The position of one piece of a single column. */
-struct IndexOfOneColumnForNativeFormat
-{
-    String name;
-    String type;
-    MarkInCompressedFile location;
-};
-
-/** The index for the data block. */
-struct IndexOfBlockForNativeFormat
-{
-    using Columns = std::vector<IndexOfOneColumnForNativeFormat>;
-
-    size_t num_columns;
-    size_t num_rows;
-    Columns columns;
-};
-
-/** The whole index. */
-struct IndexForNativeFormat
-{
-    using Blocks = std::vector<IndexOfBlockForNativeFormat>;
-    Blocks blocks;
-
-    IndexForNativeFormat() {}
-
-    IndexForNativeFormat(ReadBuffer & istr, const NameSet & required_columns)
-    {
-        read(istr, required_columns);
-    }
-
-    /// Read the index, only for the required columns.
-    void read(ReadBuffer & istr, const NameSet & required_columns);
-};
-
 
 /** Deserializes the stream of blocks from the native binary format (with names and column types).
   * Designed for communication between servers.
@@ -61,18 +22,21 @@ class NativeReader
 {
 public:
     /// If a non-zero server_revision is specified, additional block information may be expected and read.
-    NativeReader(ReadBuffer & istr_, UInt64 server_revision_);
+    NativeReader(ReadBuffer & istr_, UInt64 server_revision_, std::optional<FormatSettings> format_settings_ = std::nullopt);
 
     /// For cases when data structure (header) is known in advance.
     /// NOTE We may use header for data validation and/or type conversions. It is not implemented.
-    NativeReader(ReadBuffer & istr_, const Block & header_, UInt64 server_revision_);
+    NativeReader(
+        ReadBuffer & istr_,
+        const Block & header_,
+        UInt64 server_revision_,
+        std::optional<FormatSettings> format_settings_ = std::nullopt,
+        BlockMissingValues * block_missing_values_ = nullptr);
 
     /// For cases when we have an index. It allows to skip columns. Only columns specified in the index will be read.
     NativeReader(ReadBuffer & istr_, UInt64 server_revision_,
         IndexForNativeFormat::Blocks::const_iterator index_block_it_,
         IndexForNativeFormat::Blocks::const_iterator index_block_end_);
-
-    static void readData(const IDataType & type, ColumnPtr & column, ReadBuffer & istr, size_t rows, double avg_value_size_hint);
 
     Block getHeader() const;
 
@@ -84,6 +48,8 @@ private:
     ReadBuffer & istr;
     Block header;
     UInt64 server_revision;
+    std::optional<FormatSettings> format_settings = std::nullopt;
+    BlockMissingValues * block_missing_values = nullptr;
 
     bool use_index = false;
     IndexForNativeFormat::Blocks::const_iterator index_block_it;

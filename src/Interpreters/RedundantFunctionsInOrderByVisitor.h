@@ -2,13 +2,15 @@
 
 #include <Interpreters/InDepthNodeVisitor.h>
 #include <Parsers/ASTFunction.h>
-#include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTOrderByElement.h>
-#include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTExpressionList.h>
+#include <Parsers/ASTIdentifier.h>
+#include <Functions/FunctionFactory.h>
 
 namespace DB
 {
+
+class ASTIdentifier;
 
 class RedundantFunctionsInOrderByMatcher
 {
@@ -59,7 +61,7 @@ public:
 
             /// Allow known identifiers: they are present in ORDER BY before current item
             if (auto * identifier = arg->as<ASTIdentifier>())
-                if (data.keys.count(getIdentifierName(identifier)))
+                if (data.keys.contains(getIdentifierName(identifier)))
                     continue;
 
             /// Reject erase others
