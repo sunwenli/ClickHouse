@@ -1,6 +1,6 @@
 #include <Access/Credentials.h>
+#include <Access/Common/SSLCertificateSubjects.h>
 #include <Common/Exception.h>
-
 
 namespace DB
 {
@@ -29,7 +29,7 @@ bool Credentials::isReady() const
 
 void Credentials::throwNotReady()
 {
-    throw Exception("Credentials are not ready", ErrorCodes::LOGICAL_ERROR);
+    throw Exception(ErrorCodes::LOGICAL_ERROR, "Credentials are not ready");
 }
 
 AlwaysAllowCredentials::AlwaysAllowCredentials()
@@ -46,6 +46,20 @@ AlwaysAllowCredentials::AlwaysAllowCredentials(const String & user_name_)
 void AlwaysAllowCredentials::setUserName(const String & user_name_)
 {
     user_name = user_name_;
+}
+
+SSLCertificateCredentials::SSLCertificateCredentials(const String & user_name_, SSLCertificateSubjects && subjects_)
+    : Credentials(user_name_)
+    , certificate_subjects(subjects_)
+{
+    is_ready = true;
+}
+
+const SSLCertificateSubjects & SSLCertificateCredentials::getSSLCertificateSubjects() const
+{
+    if (!isReady())
+        throwNotReady();
+    return certificate_subjects;
 }
 
 BasicCredentials::BasicCredentials()

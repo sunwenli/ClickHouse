@@ -1,11 +1,13 @@
 #include <Processors/Transforms/ExpressionTransform.h>
 #include <Interpreters/ExpressionActions.h>
+
+
 namespace DB
 {
 
-Block ExpressionTransform::transformHeader(Block header, const ActionsDAG & expression)
+Block ExpressionTransform::transformHeader(const Block & header, const ActionsDAG & expression)
 {
-    return expression.updateHeader(std::move(header));
+    return expression.updateHeader(header);
 }
 
 
@@ -31,7 +33,7 @@ ConvertingTransform::ConvertingTransform(const Block & header_, ExpressionAction
 {
 }
 
-void ConvertingTransform::transform(Chunk & chunk)
+void ConvertingTransform::onConsume(Chunk chunk)
 {
     size_t num_rows = chunk.getNumRows();
     auto block = getInputPort().getHeader().cloneWithColumns(chunk.detachColumns());
@@ -39,6 +41,7 @@ void ConvertingTransform::transform(Chunk & chunk)
     expression->execute(block, num_rows);
 
     chunk.setColumns(block.getColumns(), num_rows);
+    cur_chunk = std::move(chunk);
 }
 
 }

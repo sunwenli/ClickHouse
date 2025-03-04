@@ -1,3 +1,6 @@
+---
+slug: /zh/engines/table-engines/special/file
+---
 # 文件(输入格式) {#table_engines-file}
 
 数据源是以 Clickhouse 支持的一种输入格式（TabSeparated，Native等）存储数据的文件。
@@ -12,7 +15,7 @@
 
     File(Format)
 
-选用的 `Format` 需要支持 `INSERT` 或 `SELECT` 。有关支持格式的完整列表，请参阅 [格式](../../../interfaces/formats.md#formats)。
+选用的 `Format` 需要支持 `INSERT` 或 `SELECT` 。有关支持格式的完整列表，请参阅 [格式](/interfaces/formats#formats-overview)。
 
 ClickHouse 不支持给 `File` 指定文件系统路径。它使用服务器配置中 [路径](../../../operations/server-configuration-parameters/settings.md) 设定的文件夹。
 
@@ -69,5 +72,3 @@ $ echo -e "1,2\n3,4" | clickhouse-local -q "CREATE TABLE table (a Int64, b Int64
     -   `SELECT ... SAMPLE`
     -   索引
     -   副本
-
-[来源文章](https://clickhouse.com/docs/en/operations/table_engines/file/) <!--hide-->

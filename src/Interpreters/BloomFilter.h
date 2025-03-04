@@ -1,13 +1,10 @@
 #pragma once
 
-#include <vector>
 #include <base/types.h>
-#include <Core/Field.h>
-#include <Common/PODArray.h>
-#include <Common/Allocator.h>
-#include <Columns/IColumn.h>
-#include <Columns/ColumnVector.h>
+#include <Columns/IColumn_fwd.h>
 #include <DataTypes/IDataType.h>
+
+#include <vector>
 
 
 namespace DB
@@ -31,12 +28,13 @@ public:
     using UnderType = UInt64;
     using Container = std::vector<UnderType>;
 
-    BloomFilter(const BloomFilterParameters & params);
+    explicit BloomFilter(const BloomFilterParameters & params);
     /// size -- size of filter in bytes.
     /// hashes -- number of used hash functions.
     /// seed -- random seed for hash functions generation.
     BloomFilter(size_t size_, size_t hashes_, size_t seed_);
 
+    void resize(size_t size_);
     bool find(const char * data, size_t len);
     void add(const char * data, size_t len);
     void clear();
@@ -53,6 +51,8 @@ public:
 
     /// For debug.
     UInt64 isEmpty() const;
+
+    size_t memoryUsageBytes() const;
 
     friend bool operator== (const BloomFilter & a, const BloomFilter & b);
 private:

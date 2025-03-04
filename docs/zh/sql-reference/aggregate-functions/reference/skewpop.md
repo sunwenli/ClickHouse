@@ -1,5 +1,6 @@
 ---
-toc_priority: 150
+slug: /zh/sql-reference/aggregate-functions/reference/skewpop
+sidebar_position: 150
 ---
 
 # skewPop {#skewpop}
@@ -14,7 +15,7 @@ skewPop(expr)
 
 **参数**
 
-`expr` — [表达式](../../../sql-reference/syntax.md#syntax-expressions) 返回一个数字。
+`expr` — [表达式](/sql-reference/syntax#expressions) 返回一个数字。
 
 **返回值**
 

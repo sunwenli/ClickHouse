@@ -1,3 +1,6 @@
+---
+slug: /ru/operations/system-tables/roles
+---
 # system.roles {#system_tables-roles}
 
 Содержит сведения о [ролях](../../operations/access-rights.md#role-management).
@@ -12,5 +15,4 @@
 
 ## Смотрите также {#see-also}
 
--   [SHOW ROLES](../../sql-reference/statements/show.md#show-roles-statement)
-
+-   [SHOW ROLES](/sql-reference/statements/show#show-roles)

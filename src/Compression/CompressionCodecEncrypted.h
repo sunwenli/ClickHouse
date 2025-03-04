@@ -1,6 +1,5 @@
 #pragma once
 
-#if !defined(ARCADIA_BUILD)
 #include <string_view>
 #include <unordered_map>
 #include <base/types.h>
@@ -18,6 +17,9 @@ enum EncryptionMethod
     AES_256_GCM_SIV,
     MAX_ENCRYPTION_METHOD
 };
+
+/// Get encryption method for string name. Throw exception for wrong name.
+EncryptionMethod toEncryptionMethod(const std::string & name);
 
 /** This codec encrypts and decrypts blocks with AES-128 in
     * GCM-SIV mode (RFC-8452), which is the only cipher currently
@@ -45,7 +47,7 @@ enum EncryptionMethod
     * as otherwise our engines like ReplicatedMergeTree cannot
     * deduplicate data blocks.
     */
-class CompressionCodecEncrypted : public ICompressionCodec
+class CompressionCodecEncrypted final : public ICompressionCodec
 {
 public:
     /** If a key is available, the server is supposed to
@@ -134,5 +136,3 @@ private:
 };
 
 }
-
-#endif /* NOT Arcadia_build */

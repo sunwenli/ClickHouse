@@ -1,4 +1,5 @@
 ---
+slug: /zh/operations/system-tables/metric_log
 machine_translated: true
 machine_translated_rev: 5decc73b5dc60054f19087d3690c4eb99446a6c3
 ---
@@ -9,14 +10,14 @@ machine_translated_rev: 5decc73b5dc60054f19087d3690c4eb99446a6c3
 打开指标历史记录收集 `system.metric_log`,创建 `/etc/clickhouse-server/config.d/metric_log.xml` 具有以下内容:
 
 ``` xml
-<yandex>
+<clickhouse>
     <metric_log>
         <database>system</database>
         <table>metric_log</table>
         <flush_interval_milliseconds>7500</flush_interval_milliseconds>
         <collect_interval_milliseconds>1000</collect_interval_milliseconds>
     </metric_log>
-</yandex>
+</clickhouse>
 ```
 
 **示例**
@@ -54,7 +55,7 @@ CurrentMetric_ReplicatedChecks:                             0
 
 **另请参阅**
 
--   [系统。asynchronous_metrics](../../operations/system-tables/asynchronous_metrics.md#system_tables-asynchronous_metrics) — Contains periodically calculated metrics.
--   [系统。活动](../../operations/system-tables/events.md#system_tables-events) — Contains a number of events that occurred.
--   [系统。指标](../../operations/system-tables/metrics.md#system_tables-metrics) — Contains instantly calculated metrics.
+-   [系统。asynchronous_metrics](/operations/system-tables/asynchronous_metrics) — Contains periodically calculated metrics.
+-   [系统。活动](/operations/system-tables/events) — Contains a number of events that occurred.
+-   [系统。指标](/operations/system-tables/metrics) — Contains instantly calculated metrics.
 -   [监测](../../operations/monitoring.md) — Base concepts of ClickHouse monitoring.

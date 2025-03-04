@@ -1,5 +1,6 @@
 ---
-toc_priority: 205
+slug: /zh/sql-reference/aggregate-functions/reference/quantiletimingweighted
+sidebar_position: 205
 ---
 
 # quantileTimingWeighted {#quantiletimingweighted}
@@ -21,7 +22,7 @@ quantileTimingWeighted(level)(expr, weight)
 **参数**
 
 -   `level` — 分位数层次。可选参数。从0到1的一个float类型的常量。我们推荐 `level` 值的范围为 `[0.01, 0.99]` 。默认值：0.5。当 `level=0.5` 时，该函数计算 [中位数](https://en.wikipedia.org/wiki/Median)。
--   `expr` — 求值[表达式](../../../sql-reference/syntax.md#syntax-expressions) 返回 [Float\*](../../../sql-reference/data-types/float.md) 类型数值。
+-   `expr` — 求值[表达式](/sql-reference/syntax#expressions) 返回 [Float\*](../../../sql-reference/data-types/float.md) 类型数值。
 
     - 如果输入负值，那结果是不可预期的。
     - 如果输入值大于30000（页面加载时间大于30s），那我们假设为30000。
@@ -38,8 +39,9 @@ quantileTimingWeighted(level)(expr, weight)
 
 否则，计算结果将四舍五入到16毫秒的最接近倍数。
 
-!!! note "注"
-    对于计算页面加载时间分位数， 此函数比[quantile](../../../sql-reference/aggregate-functions/reference/quantile.md#quantile)更有效和准确。
+:::note
+对于计算页面加载时间分位数， 此函数比[quantile](../../../sql-reference/aggregate-functions/reference/quantile.md#quantile)更有效和准确。
+:::
 
 **返回值**
 
@@ -47,8 +49,9 @@ quantileTimingWeighted(level)(expr, weight)
 
 类型: `Float32`。
 
-!!! note "注"
+:::note
 如果没有值传递给函数（当使用 `quantileTimingIf`), [NaN](../../../sql-reference/data-types/float.md#data_type-float-nan-inf)被返回。 这样做的目的是将这些案例与导致零的案例区分开来。 参见 [ORDER BY clause](../../../sql-reference/statements/select/order-by.md#select-order-by) 对于 `NaN` 值排序注意事项。
+:::
 
 **示例**
 

@@ -1,5 +1,6 @@
 ---
-toc_priority: 209
+slug: /ru/sql-reference/aggregate-functions/reference/quantilebfloat16
+sidebar_position: 209
 ---
 
 # quantileBFloat16 {#quantilebfloat16}
@@ -28,7 +29,7 @@ quantileBFloat16[(level)](expr)
 
 -   Приближенное значение квантиля.
 
-Тип: [Float64](../../../sql-reference/data-types/float.md#float32-float64).
+Тип: [Float64](/sql-reference/data-types/float).
 
 **Пример**
 

@@ -1,3 +1,6 @@
+---
+slug: /ru/operations/system-tables/quotas
+---
 # system.quotas {#system_tables-quotas}
 
 Содержит информацию о [квотах](quotas.md).
@@ -15,7 +18,7 @@
     -   `['user_name', 'client_key']` — Соединения с одинаковым ключом используют одну и ту же квоту. Если ключ не предоставлен клиентом, то квота отслеживается для `user_name`.
     -   `['client_key', 'ip_address']` — Соединения с одинаковым ключом используют одну и ту же квоту. Если ключ не предоставлен клиентом, то квота отслеживается для `ip_address`.
 -   `durations` ([Array](../../sql-reference/data-types/array.md)([UInt64](../../sql-reference/data-types/int-uint.md))) — Длины временных интервалов для расчета потребления ресурсов, в секундах.
--   `apply_to_all` ([UInt8](../../sql-reference/data-types/int-uint.md#uint-ranges)) — Логическое значение. Он показывает, к каким пользователям применяется квота. Значения:
+-   `apply_to_all` ([UInt8](/sql-reference/data-types/int-uint#integer-ranges)) — Логическое значение. Он показывает, к каким пользователям применяется квота. Значения:
     -   `0` — Квота применяется к пользователям, перечисленным в списке `apply_to_list`.
     -   `1` — Квота применяется к пользователям, за исключением тех, что перечислены в списке `apply_to_except`.
 -   `apply_to_list` ([Array](../../sql-reference/data-types/array.md)([String](../../sql-reference/data-types/string.md))) — Список имен пользователей/[ролей](../../operations/access-rights.md#role-management) к которым применяется квота.
@@ -24,5 +27,3 @@
 ## Смотрите также {#see-also}
 
 -   [SHOW QUOTAS](../../sql-reference/statements/show.md#show-quotas-statement)
-
-

@@ -1,8 +1,12 @@
-toc_priority: 58
-toc_title: Usage Recommendations
 ---
+slug: /operations/tips
+sidebar_position: 58
+sidebar_label: Usage Recommendations
+title: "Usage Recommendations"
+---
+import SelfManaged from '@site/docs/_snippets/_self_managed_only_automated.md';
 
-# Usage Recommendations {#usage-recommendations}
+<SelfManaged />
 
 ## CPU Scaling Governor {#cpu-scaling-governor}
 
@@ -14,7 +18,7 @@ $ echo 'performance' | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_gov
 
 ## CPU Limitations {#cpu-limitations}
 
-Processors can overheat. Use `dmesg` to see if the CPU’s clock rate was limited due to overheating.
+Processors can overheat. Use `dmesg` to see if the CPU's clock rate was limited due to overheating.
 The restriction can also be set externally at the datacenter level. You can use `turbostat` to monitor it under a load.
 
 ## RAM {#ram}
@@ -32,8 +36,24 @@ $ echo 0 | sudo tee /proc/sys/vm/overcommit_memory
 Use `perf top` to watch the time spent in the kernel for memory management.
 Permanent huge pages also do not need to be allocated.
 
-!!! warning "Attention"
-    If your system has less than 16 GB of RAM you may experience various memory exceptions because default settings does not match this amount of RAM. Recommended amount of RAM is 32 GB or more. You can use ClickHouse in system with small amount of RAM, even with 2 GB of RAM, but it requires an additional tuning and able to process small ingestion rate.
+### Using less than 16GB of RAM {#using-less-than-16gb-of-ram}
+
+The recommended amount of RAM is 32 GB or more.
+
+If your system has less than 16 GB of RAM, you may experience various memory exceptions because default settings do not match this amount of memory. You can use ClickHouse in a system with a small amount of RAM (as low as 2 GB), but these setups require additional tuning and can only ingest at a low rate.
+
+When using ClickHouse with less than 16GB of RAM, we recommend the following:
+
+- Lower the size of the mark cache in the `config.xml`. It can be set as low as 500 MB, but it cannot be set to zero.
+- Lower the number of query processing threads down to `1`.
+- Lower the `max_block_size` to `8192`. Values as low as `1024` can still be practical.
+- Lower `max_download_threads` to `1`.
+- Set `input_format_parallel_parsing` and `output_format_parallel_formatting` to `0`.
+
+Additional notes:
+- To flush the memory cached by the memory allocator, you can run the `SYSTEM JEMALLOC PURGE`
+command.
+- We do not recommend using S3 or Kafka integrations on low-memory machines because they require significant memory for buffers.
 
 ## Storage Subsystem {#storage-subsystem}
 
@@ -46,9 +66,13 @@ But for storing archives with rare queries, shelves will work.
 ## RAID {#raid}
 
 When using HDD, you can combine their RAID-10, RAID-5, RAID-6 or RAID-50.
-For Linux, software RAID is better (with `mdadm`). We do not recommend using LVM.
+For Linux, software RAID is better (with `mdadm`). 
 When creating RAID-10, select the `far` layout.
 If your budget allows, choose RAID-10.
+
+LVM by itself (without RAID or `mdadm`) is ok, but making RAID with it or combining it with `mdadm` is a less explored option, and there will be more chances for mistakes
+(selecting wrong chunk size; misalignment of chunks; choosing a wrong raid type; forgetting to cleanup disks). If you are confident
+in using LVM, there is nothing against using it.
 
 If you have more than 4 disks, use RAID-6 (preferred) or RAID-50, instead of RAID-5.
 When using RAID-5, RAID-6 or RAID-50, always increase stripe_cache_size, since the default value is usually not the best choice.
@@ -65,18 +89,26 @@ Never set the block size too small or too large.
 You can use RAID-0 on SSD.
 Regardless of RAID use, always use replication for data security.
 
-Enable NCQ with a long queue. For HDD, choose the CFQ scheduler, and for SSD, choose noop. Don’t reduce the ‘readahead’ setting.
+Enable NCQ with a long queue. For HDD, choose the mq-deadline or CFQ scheduler, and for SSD, choose noop. Don't reduce the 'readahead' setting.
 For HDD, enable the write cache.
+
+Make sure that [`fstrim`](https://en.wikipedia.org/wiki/Trim_(computing)) is enabled for NVME and SSD disks in your OS (usually it's implemented using a cronjob or systemd service).
 
 ## File System {#file-system}
 
-Ext4 is the most reliable option. Set the mount options `noatime, nobarrier`.
-XFS is also suitable, but it hasn’t been as thoroughly tested with ClickHouse.
-Most other file systems should also work fine. File systems with delayed allocation work better.
+Ext4 is the most reliable option. Set the mount options `noatime`. XFS works well too.
+Most other file systems should also work fine.
+
+FAT-32 and exFAT are not supported due to lack of hard links.
+
+Do not use compressed filesystems, because ClickHouse does compression on its own and better.
+It's not recommended to use encrypted filesystems, because you can use builtin encryption in ClickHouse, which is better.
+
+While ClickHouse can work over NFS, it is not the best idea.
 
 ## Linux Kernel {#linux-kernel}
 
-Don’t use an outdated Linux kernel.
+Don't use an outdated Linux kernel.
 
 ## Network {#network}
 
@@ -87,23 +119,31 @@ Use at least a 10 GB network, if possible. 1 Gb will also work, but it will be m
 
 ## Huge Pages {#huge-pages}
 
-If you are using old Linux kernel, disable transparent huge pages. It interferes with memory allocators, which leads to significant performance degradation.
+If you are using old Linux kernel, disable transparent huge pages. It interferes with memory allocator, which leads to significant performance degradation.
 On newer Linux kernels transparent huge pages are alright.
 
 ``` bash
 $ echo 'madvise' | sudo tee /sys/kernel/mm/transparent_hugepage/enabled
 ```
 
-## Hypervisor configuration
+If you want to modify the transparent huge pages setting permanently, editing the `/etc/default/grub` to add the `transparent_hugepage=madvise` to the `GRUB_CMDLINE_LINUX_DEFAULT` option:
+
+```bash
+$ GRUB_CMDLINE_LINUX_DEFAULT="transparent_hugepage=madvise ..."
+```
+
+After that, run the `sudo update-grub` command then reboot to take effect.
+
+## Hypervisor configuration {#hypervisor-configuration}
 
 If you are using OpenStack, set
-```
+```ini
 cpu_mode=host-passthrough
 ```
-in nova.conf.
+in `nova.conf`.
 
 If you are using libvirt, set
-```
+```xml
 <cpu mode='host-passthrough'/>
 ```
 in XML configuration.
@@ -111,25 +151,30 @@ in XML configuration.
 This is important for ClickHouse to be able to get correct information with `cpuid` instruction.
 Otherwise you may get `Illegal instruction` crashes when hypervisor is run on old CPU models.
 
-## ZooKeeper {#zookeeper}
+## ClickHouse Keeper and ZooKeeper {#zookeeper}
 
-You are probably already using ZooKeeper for other purposes. You can use the same installation of ZooKeeper, if it isn’t already overloaded.
+ClickHouse Keeper is recommended to replace ZooKeeper for ClickHouse clusters.  See the documentation for [ClickHouse Keeper](../guides/sre/keeper/index.md)
 
-It’s best to use a fresh version of ZooKeeper – 3.4.9 or later. The version in stable Linux distributions may be outdated.
+If you would like to continue using ZooKeeper then it is best to use a fresh version of ZooKeeper – 3.4.9 or later. The version in stable Linux distributions may be outdated.
 
-You should never use manually written scripts to transfer data between different ZooKeeper clusters, because the result will be incorrect for sequential nodes. Never use the “zkcopy” utility for the same reason: https://github.com/ksprojects/zkcopy/issues/15
+You should never use manually written scripts to transfer data between different ZooKeeper clusters, because the result will be incorrect for sequential nodes. Never use the "zkcopy" utility for the same reason: https://github.com/ksprojects/zkcopy/issues/15
 
 If you want to divide an existing ZooKeeper cluster into two, the correct way is to increase the number of its replicas and then reconfigure it as two independent clusters.
 
-Do not run ZooKeeper on the same servers as ClickHouse. Because ZooKeeper is very sensitive for latency and ClickHouse may utilize all available system resources.
+You can run ClickHouse Keeper on the same server as ClickHouse in test environments, or in environments with low ingestion rate.
+For production environments we suggest to use separate servers for ClickHouse and ZooKeeper/Keeper, or place ClickHouse files and Keeper files on to separate disks. Because ZooKeeper/Keeper are very sensitive for disk latency and ClickHouse may utilize all available system resources.
+
+You can have ZooKeeper observers in an ensemble but ClickHouse servers should not interact with observers.
+
+Do not change `minSessionTimeout` setting, large values may affect ClickHouse restart stability.
 
 With the default settings, ZooKeeper is a time bomb:
 
-> The ZooKeeper server won’t delete files from old snapshots and logs when using the default configuration (see autopurge), and this is the responsibility of the operator.
+> The ZooKeeper server won't delete files from old snapshots and logs when using the default configuration (see `autopurge`), and this is the responsibility of the operator.
 
 This bomb must be defused.
 
-The ZooKeeper (3.5.1) configuration below is used in the Yandex.Metrica production environment as of May 20, 2017:
+The ZooKeeper (3.5.1) configuration below is used in a large production environment:
 
 zoo.cfg:
 
@@ -171,10 +216,12 @@ preAllocSize=131072
 # especially if there are a lot of clients. To prevent ZooKeeper from running
 # out of memory due to queued requests, ZooKeeper will throttle clients so that
 # there is no more than globalOutstandingLimit outstanding requests in the
-# system. The default limit is 1,000.ZooKeeper logs transactions to a
-# transaction log. After snapCount transactions are written to a log file a
-# snapshot is started and a new transaction log file is started. The default
-# snapCount is 10,000.
+# system. The default limit is 1000.
+# globalOutstandingLimit=1000
+
+# ZooKeeper logs transactions to a transaction log. After snapCount transactions
+# are written to a log file a snapshot is started and a new transaction log file
+# is started. The default snapCount is 100000.
 snapCount=3000000
 
 # If this option is defined, requests will be will logged to a trace file named
@@ -230,7 +277,7 @@ JAVA_OPTS="-Xms{{ '{{' }} cluster.get('xms','128M') {{ '}}' }} \
     -XX:MaxGCPauseMillis=50"
 ```
 
-Salt init:
+Salt initialization:
 
 ``` text
 description "zookeeper-{{ '{{' }} cluster['name'] {{ '}}' }} centralized coordination service"
@@ -261,4 +308,10 @@ script
 end script
 ```
 
-{## [Original article](https://clickhouse.com/docs/en/operations/tips/) ##}
+## Antivirus software {#antivirus-software}
+
+If you use antivirus software configure it to skip folders with ClickHouse datafiles (`/var/lib/clickhouse`) otherwise performance may be reduced and you may experience unexpected errors during data ingestion and background merges.
+
+## Related Content {#related-content}
+
+- [Getting started with ClickHouse? Here are 13 "Deadly Sins" and how to avoid them](https://clickhouse.com/blog/common-getting-started-issues-with-clickhouse)

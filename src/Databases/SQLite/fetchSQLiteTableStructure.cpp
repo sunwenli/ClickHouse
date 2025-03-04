@@ -13,6 +13,10 @@
 #include <DataTypes/DataTypesNumber.h>
 #include <Poco/String.h>
 
+#include <string_view>
+
+
+using namespace std::literals;
 
 namespace DB
 {
@@ -27,17 +31,14 @@ static DataTypePtr convertSQLiteDataType(String type)
     DataTypePtr res;
     type = Poco::toLower(type);
 
-    if (type == "tinyint")
-        res = std::make_shared<DataTypeInt8>();
-    else if (type == "smallint")
-        res = std::make_shared<DataTypeInt16>();
-    else if (type.starts_with("int") || type == "mediumint")
-        res = std::make_shared<DataTypeInt32>();
-    else if (type == "bigint")
+    /// The SQLite columns get the INTEGER affinity if the type name contains "int". This means variable-length integers up to 8 bytes. The bit width is not really enforced even
+    /// in a STRICT table, so in general we should treat these columns as Int64. Besides that, we allow some common fixed-width int specifiers for applications to select a
+    /// particular width, even though it's not enforced in any way by SQLite itself.
+    /// Docs: https://www.sqlite.org/datatype3.html
+    /// The most insane quote from there: Note that a declared type of "FLOATING POINT" would give INTEGER affinity, not REAL affinity, due to the "INT" at the end of "POINT".
+    if (type.find("int") != std::string::npos)
         res = std::make_shared<DataTypeInt64>();
-    else if (type == "float")
-        res = std::make_shared<DataTypeFloat32>();
-    else if (type.starts_with("double") || type == "real")
+    else if (type == "float" || type.starts_with("double") || type == "real")
         res = std::make_shared<DataTypeFloat64>();
     else
         res = std::make_shared<DataTypeString>(); // No decimal when fetching data through API
@@ -49,7 +50,7 @@ static DataTypePtr convertSQLiteDataType(String type)
 std::shared_ptr<NamesAndTypesList> fetchSQLiteTableStructure(sqlite3 * connection, const String & sqlite_table_name)
 {
     auto columns = NamesAndTypesList();
-    auto query = fmt::format("pragma table_info({});", quoteString(sqlite_table_name));
+    auto query = fmt::format("pragma table_info({});", quoteStringSQLite(sqlite_table_name));
 
     auto callback_get_data = [](void * res, int col_num, char ** data_by_col, char ** col_names) -> int
     {
@@ -58,15 +59,15 @@ std::shared_ptr<NamesAndTypesList> fetchSQLiteTableStructure(sqlite3 * connectio
 
         for (int i = 0; i < col_num; ++i)
         {
-            if (strcmp(col_names[i], "name") == 0)
+            if (col_names[i] == "name"sv)
             {
                 name_and_type.name = data_by_col[i];
             }
-            else if (strcmp(col_names[i], "type") == 0)
+            else if (col_names[i] == "type"sv)
             {
                 name_and_type.type = convertSQLiteDataType(data_by_col[i]);
             }
-            else if (strcmp(col_names[i], "notnull") == 0)
+            else if (col_names[i] == "notnull"sv)
             {
                 is_nullable = (data_by_col[i][0] == '0');
             }

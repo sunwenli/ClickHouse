@@ -1,6 +1,7 @@
 ---
-toc_priority: 43
-toc_title: DETACH
+slug: /ru/sql-reference/statements/detach
+sidebar_position: 43
+sidebar_label: DETACH
 ---
 
 # DETACH {#detach-statement}
@@ -69,5 +70,5 @@ Code: 60. DB::Exception: Received from localhost:9000. DB::Exception: Table defa
 
 **Смотрите также**
 
--   [Материализованные представления](../../sql-reference/statements/create/view.md#materialized)
+-   [Материализованные представления](/sql-reference/statements/create/view#materialized-view)
 -   [Словари](../../sql-reference/dictionaries/index.md)

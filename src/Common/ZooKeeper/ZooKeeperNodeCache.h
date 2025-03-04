@@ -31,7 +31,7 @@ namespace zkutil
 class ZooKeeperNodeCache
 {
 public:
-    ZooKeeperNodeCache(GetZooKeeper get_zookeeper);
+    explicit ZooKeeperNodeCache(GetZooKeeper get_zookeeper);
 
     ZooKeeperNodeCache(const ZooKeeperNodeCache &) = delete;
     ZooKeeperNodeCache(ZooKeeperNodeCache &&) = default;
@@ -45,6 +45,8 @@ public:
 
     ZNode get(const std::string & path, EventPtr watch_event);
     ZNode get(const std::string & path, Coordination::WatchCallback watch_callback);
+
+    void sync();
 
 private:
     GetZooKeeper get_zookeeper;

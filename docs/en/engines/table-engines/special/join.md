@@ -1,14 +1,18 @@
 ---
-toc_priority: 40
-toc_title: Join
+slug: /engines/table-engines/special/join
+sidebar_position: 70
+sidebar_label: Join
+title: "Join Table Engine"
+description: "Optional prepared data structure for usage in JOIN operations."
 ---
 
-# Join Table Engine {#join}
+# Join Table Engine
 
-Optional prepared data structure for usage in [JOIN](../../../sql-reference/statements/select/join.md#select-join) operations.
+Optional prepared data structure for usage in [JOIN](/sql-reference/statements/select/join) operations.
 
-!!! note "Note"
-    This is not an article about the [JOIN clause](../../../sql-reference/statements/select/join.md#select-join) itself.
+:::note
+This is not an article about the [JOIN clause](/sql-reference/statements/select/join) itself.
+:::
 
 ## Creating a Table {#creating-a-table}
 
@@ -20,13 +24,21 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
 ) ENGINE = Join(join_strictness, join_type, k1[, k2, ...])
 ```
 
-See the detailed description of the [CREATE TABLE](../../../sql-reference/statements/create/table.md#create-table-query) query.
+See the detailed description of the [CREATE TABLE](/sql-reference/statements/create/table) query.
 
-**Engine Parameters**
+## Engine Parameters {#engine-parameters}
 
--   `join_strictness` – [JOIN strictness](../../../sql-reference/statements/select/join.md#select-join-types).
--   `join_type` – [JOIN type](../../../sql-reference/statements/select/join.md#select-join-types).
--   `k1[, k2, ...]` – Key columns from the `USING` clause that the `JOIN` operation is made with.
+### join_strictness {#join_strictness}
+
+`join_strictness` – [JOIN strictness](/sql-reference/statements/select/join#supported-types-of-join).
+
+### join_type {#join_type}
+
+`join_type` – [JOIN type](/sql-reference/statements/select/join#supported-types-of-join).
+
+### Key columns {#key-columns}
+
+`k1[, k2, ...]` – Key columns from the `USING` clause that the `JOIN` operation is made with.
 
 Enter `join_strictness` and `join_type` parameters without quotes, for example, `Join(ANY, LEFT, col1)`. They must match the `JOIN` operation that the table will be used for. If the parameters do not match, ClickHouse does not throw an exception and may return incorrect data.
 
@@ -44,27 +56,54 @@ You can use `INSERT` queries to add data to the `Join`-engine tables. If the tab
 
 Main use-cases for `Join`-engine tables are following:
 
--   Place the table to the right side in a `JOIN` clause.
--   Call the [joinGet](../../../sql-reference/functions/other-functions.md#joinget) function, which lets you extract data from the table the same way as from a dictionary.
+- Place the table to the right side in a `JOIN` clause.
+- Call the [joinGet](/sql-reference/functions/other-functions.md/#joinget) function, which lets you extract data from the table the same way as from a dictionary.
 
 ### Deleting Data {#deleting-data}
 
-`ALTER DELETE` queries for `Join`-engine tables are implemented as [mutations](../../../sql-reference/statements/alter/index.md#mutations). `DELETE` mutation reads filtered data and overwrites data of memory and disk.
+`ALTER DELETE` queries for `Join`-engine tables are implemented as [mutations](/sql-reference/statements/alter/index.md#mutations). `DELETE` mutation reads filtered data and overwrites data of memory and disk.
 
 ### Limitations and Settings {#join-limitations-and-settings}
 
 When creating a table, the following settings are applied:
 
--   [join_use_nulls](../../../operations/settings/settings.md#join_use_nulls)
--   [max_rows_in_join](../../../operations/settings/query-complexity.md#settings-max_rows_in_join)
--   [max_bytes_in_join](../../../operations/settings/query-complexity.md#settings-max_bytes_in_join)
--   [join_overflow_mode](../../../operations/settings/query-complexity.md#settings-join_overflow_mode)
--   [join_any_take_last_row](../../../operations/settings/settings.md#settings-join_any_take_last_row)
--   [persistent](../../../operations/settings/settings.md#persistent)
+#### join_use_nulls {#join_use_nulls}
 
-The `Join`-engine tables can’t be used in `GLOBAL JOIN` operations.
+[join_use_nulls](/operations/settings/settings.md/#join_use_nulls)
 
-The `Join`-engine allows to specify [join_use_nulls](../../../operations/settings/settings.md#join_use_nulls) setting in the `CREATE TABLE` statement. [SELECT](../../../sql-reference/statements/select/index.md) query should have the same `join_use_nulls` value.
+#### max_rows_in_join {#max_rows_in_join}
+
+[max_rows_in_join](/operations/settings/query-complexity#settings-max_rows_in_join)
+
+#### max_bytes_in_join {#max_bytes_in_join}
+
+[max_bytes_in_join](/operations/settings/query-complexity#settings-max_bytes_in_join)
+
+#### join_overflow_mode {#join_overflow_mode}
+
+[join_overflow_mode](/operations/settings/query-complexity#settings-join_overflow_mode)
+
+#### join_any_take_last_row {#join_any_take_last_row}
+
+[join_any_take_last_row](/operations/settings/settings.md/#join_any_take_last_row)
+#### join_use_nulls {#join_use_nulls-1}
+
+#### persistent {#persistent}
+
+Disables persistency for the Join and [Set](/engines/table-engines/special/set.md) table engines.
+
+Reduces the I/O overhead. Suitable for scenarios that pursue performance and do not require persistence.
+
+Possible values:
+
+- 1 — Enabled.
+- 0 — Disabled.
+
+Default value: `1`.
+
+The `Join`-engine tables can't be used in `GLOBAL JOIN` operations.
+
+The `Join`-engine allows to specify [join_use_nulls](/operations/settings/settings.md/#join_use_nulls) setting in the `CREATE TABLE` statement. [SELECT](/sql-reference/statements/select/index.md) query should have the same `join_use_nulls` value.
 
 ## Usage Examples {#example}
 

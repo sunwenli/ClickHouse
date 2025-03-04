@@ -1,6 +1,7 @@
-<yandex>
+<clickhouse>
     <logger>
         <level>trace</level>
         <log>/var/log/clickhouse-server/clickhouse-server.log</log>
     </logger>
-</yandex>
+    <warning_supress_regexp>It will work slowly\.$</warning_supress_regexp>
+</clickhouse>

@@ -1,9 +1,11 @@
 ---
-toc_priority: 38
-toc_title: Operators
+slug: /sql-reference/operators/
+sidebar_position: 38
+sidebar_label: Operators
+displayed_sidebar: sqlreference
 ---
 
-# Operators {#operators}
+# Operators
 
 ClickHouse transforms operators to their corresponding functions at the query parsing stage according to their priority, precedence, and associativity.
 
@@ -17,11 +19,17 @@ ClickHouse transforms operators to their corresponding functions at the query pa
 
 `-a` – The `negate (a)` function.
 
+For tuple negation: [tupleNegate](../../sql-reference/functions/tuple-functions.md#tuplenegate).
+
 ## Multiplication and Division Operators {#multiplication-and-division-operators}
 
 `a * b` – The `multiply (a, b)` function.
 
+For multiplying tuple by number: [tupleMultiplyByNumber](../../sql-reference/functions/tuple-functions.md#tuplemultiplybynumber), for scalar product: [dotProduct](../../sql-reference/functions/tuple-functions.md#dotproduct).
+
 `a / b` – The `divide(a, b)` function.
+
+For dividing tuple by number: [tupleDivideByNumber](../../sql-reference/functions/tuple-functions.md#tupledividebynumber).
 
 `a % b` – The `modulo(a, b)` function.
 
@@ -29,51 +37,120 @@ ClickHouse transforms operators to their corresponding functions at the query pa
 
 `a + b` – The `plus(a, b)` function.
 
+For tuple addiction: [tuplePlus](../../sql-reference/functions/tuple-functions.md#tupleplus).
+
 `a - b` – The `minus(a, b)` function.
+
+For tuple subtraction: [tupleMinus](../../sql-reference/functions/tuple-functions.md#tupleminus).
 
 ## Comparison Operators {#comparison-operators}
 
+### equals function {#equals-function}
 `a = b` – The `equals(a, b)` function.
 
 `a == b` – The `equals(a, b)` function.
 
+### notEquals function {#notequals-function}
 `a != b` – The `notEquals(a, b)` function.
 
 `a <> b` – The `notEquals(a, b)` function.
 
+### lessOrEquals function {#lessorequals-function}
 `a <= b` – The `lessOrEquals(a, b)` function.
 
+### greaterOrEquals function {#greaterorequals-function}
 `a >= b` – The `greaterOrEquals(a, b)` function.
 
+### less function {#less-function}
 `a < b` – The `less(a, b)` function.
 
+### greater function {#greater-function}
 `a > b` – The `greater(a, b)` function.
 
+### like function {#like-function}
 `a LIKE s` – The `like(a, b)` function.
 
+### notLike function {#notlike-function}
 `a NOT LIKE s` – The `notLike(a, b)` function.
 
+### ilike function {#ilike-function}
 `a ILIKE s` – The `ilike(a, b)` function.
 
+### BETWEEN function {#between-function}
 `a BETWEEN b AND c` – The same as `a >= b AND a <= c`.
 
 `a NOT BETWEEN b AND c` – The same as `a < b OR a > c`.
 
 ## Operators for Working with Data Sets {#operators-for-working-with-data-sets}
 
-*See [IN operators](../../sql-reference/operators/in.md).*
+See [IN operators](../../sql-reference/operators/in.md) and [EXISTS](../../sql-reference/operators/exists.md) operator.
 
+### in function {#in-function}
 `a IN ...` – The `in(a, b)` function.
 
+### notIn function {#notin-function}
 `a NOT IN ...` – The `notIn(a, b)` function.
 
+### globalIn function {#globalin-function}
 `a GLOBAL IN ...` – The `globalIn(a, b)` function.
 
+### globalNotIn function {#globalnotin-function}
 `a GLOBAL NOT IN ...` – The `globalNotIn(a, b)` function.
 
-## Operators for Working with Dates and Times {#operators-datetime}
+### in subquery function {#in-subquery-function}
+`a = ANY (subquery)` – The `in(a, subquery)` function.  
 
-### EXTRACT {#operator-extract}
+### notIn subquery function {#notin-subquery-function}
+`a != ANY (subquery)` – The same as `a NOT IN (SELECT singleValueOrNull(*) FROM subquery)`.
+
+### in subquery function {#in-subquery-function-1}
+`a = ALL (subquery)` – The same as `a IN (SELECT singleValueOrNull(*) FROM subquery)`.
+
+### notIn subquery function {#notin-subquery-function-1}
+`a != ALL (subquery)` – The `notIn(a, subquery)` function. 
+
+
+**Examples**
+
+Query with ALL:
+
+``` sql
+SELECT number AS a FROM numbers(10) WHERE a > ALL (SELECT number FROM numbers(3, 3));
+```
+
+Result:
+
+``` text
+┌─a─┐
+│ 6 │
+│ 7 │
+│ 8 │
+│ 9 │
+└───┘
+```
+
+Query with ANY:
+
+``` sql
+SELECT number AS a FROM numbers(10) WHERE a > ANY (SELECT number FROM numbers(3, 3));
+```
+
+Result:
+
+``` text
+┌─a─┐
+│ 4 │
+│ 5 │
+│ 6 │
+│ 7 │
+│ 8 │
+│ 9 │
+└───┘
+```
+
+## Operators for Working with Dates and Times {#operators-for-working-with-dates-and-times}
+
+### EXTRACT {#extract}
 
 ``` sql
 EXTRACT(part FROM date);
@@ -83,12 +160,12 @@ Extract parts from a given date. For example, you can retrieve a month from a gi
 
 The `part` parameter specifies which part of the date to retrieve. The following values are available:
 
--   `DAY` — The day of the month. Possible values: 1–31.
--   `MONTH` — The number of a month. Possible values: 1–12.
--   `YEAR` — The year.
--   `SECOND` — The second. Possible values: 0–59.
--   `MINUTE` — The minute. Possible values: 0–59.
--   `HOUR` — The hour. Possible values: 0–23.
+- `DAY` — The day of the month. Possible values: 1–31.
+- `MONTH` — The number of a month. Possible values: 1–12.
+- `YEAR` — The year.
+- `SECOND` — The second. Possible values: 0–59.
+- `MINUTE` — The minute. Possible values: 0–59.
+- `HOUR` — The hour. Possible values: 0–23.
 
 The `part` parameter is case-insensitive.
 
@@ -137,7 +214,7 @@ FROM test.Orders;
 
 You can see more examples in [tests](https://github.com/ClickHouse/ClickHouse/blob/master/tests/queries/0_stateless/00619_extract.sql).
 
-### INTERVAL {#operator-interval}
+### INTERVAL {#interval}
 
 Creates an [Interval](../../sql-reference/data-types/special-data-types/interval.md)-type value that should be used in arithmetical operations with [Date](../../sql-reference/data-types/date.md) and [DateTime](../../sql-reference/data-types/datetime.md)-type values.
 
@@ -153,8 +230,9 @@ Types of intervals:
 
 You can also use a string literal when setting the `INTERVAL` value. For example, `INTERVAL 1 HOUR` is identical to the `INTERVAL '1 hour'` or `INTERVAL '1' hour`.
 
-!!! warning "Warning"
-    Intervals with different types can’t be combined. You can’t use expressions like `INTERVAL 4 DAY 1 HOUR`. Specify intervals in units that are smaller or equal to the smallest unit of the interval, for example, `INTERVAL 25 HOUR`. You can use consecutive operations, like in the example below.
+:::tip    
+Intervals with different types can't be combined. You can't use expressions like `INTERVAL 4 DAY 1 HOUR`. Specify intervals in units that are smaller or equal to the smallest unit of the interval, for example, `INTERVAL 25 HOUR`. You can use consecutive operations, like in the example below.
+:::
 
 Examples:
 
@@ -188,16 +266,14 @@ SELECT now() AS current_date_time, current_date_time + INTERVAL '4' day + INTERV
 └─────────────────────┴────────────────────────────────────────────────────────────┘
 ```
 
-You can work with dates without using `INTERVAL`, just by adding or subtracting seconds, minutes, and hours. For example, an interval of one day can be set by adding `60*60*24`.
-
-!!! note "Note"
-    The `INTERVAL` syntax or `addDays` function are always preferred. Simple addition or subtraction (syntax like `now() + ...`) doesn't consider time settings. For example, daylight saving time.
-
+:::note    
+The `INTERVAL` syntax or `addDays` function are always preferred. Simple addition or subtraction (syntax like `now() + ...`) doesn't consider time settings. For example, daylight saving time.
+:::
 
 Examples:
 
 ``` sql
-SELECT toDateTime('2014-10-26 00:00:00', 'Europe/Moscow') AS time, time + 60 * 60 * 24 AS time_plus_24_hours, time + toIntervalDay(1) AS time_plus_1_day;
+SELECT toDateTime('2014-10-26 00:00:00', 'Asia/Istanbul') AS time, time + 60 * 60 * 24 AS time_plus_24_hours, time + toIntervalDay(1) AS time_plus_1_day;
 ```
 
 ``` text
@@ -208,8 +284,8 @@ SELECT toDateTime('2014-10-26 00:00:00', 'Europe/Moscow') AS time, time + 60 * 6
 
 **See Also**
 
--   [Interval](../../sql-reference/data-types/special-data-types/interval.md) data type
--   [toInterval](../../sql-reference/functions/type-conversion-functions.md#function-tointerval) type conversion functions
+- [Interval](../../sql-reference/data-types/special-data-types/interval.md) data type
+- [toInterval](../../sql-reference/functions/type-conversion-functions.md#function-tointerval) type conversion functions
 
 ## Logical AND Operator {#logical-and-operator}
 
@@ -229,9 +305,9 @@ Syntax `SELECT NOT a` — calculates logical negation of `a` with the function [
 
 Note:
 
-The conditional operator calculates the values of b and c, then checks whether condition a is met, and then returns the corresponding value. If `b` or `C` is an [arrayJoin()](../../sql-reference/functions/array-join.md#functions_arrayjoin) function, each row will be replicated regardless of the “a” condition.
+The conditional operator calculates the values of b and c, then checks whether condition a is met, and then returns the corresponding value. If `b` or `C` is an [arrayJoin()](../../sql-reference/functions/array-join.md#functions_arrayjoin) function, each row will be replicated regardless of the "a" condition.
 
-## Conditional Expression {#operator_case}
+## Conditional Expression {#conditional-expression}
 
 ``` sql
 CASE [x]
@@ -276,12 +352,12 @@ For efficiency, the `and` and `or` functions accept any number of arguments. The
 
 ClickHouse supports the `IS NULL` and `IS NOT NULL` operators.
 
-### IS NULL {#operator-is-null}
+### IS NULL {#is_null}
 
--   For [Nullable](../../sql-reference/data-types/nullable.md) type values, the `IS NULL` operator returns:
-    -   `1`, if the value is `NULL`.
-    -   `0` otherwise.
--   For other values, the `IS NULL` operator always returns `0`.
+- For [Nullable](../../sql-reference/data-types/nullable.md) type values, the `IS NULL` operator returns:
+    - `1`, if the value is `NULL`.
+    - `0` otherwise.
+- For other values, the `IS NULL` operator always returns `0`.
 
 Can be optimized by enabling the [optimize_functions_to_subcolumns](../../operations/settings/settings.md#optimize-functions-to-subcolumns) setting. With `optimize_functions_to_subcolumns = 1` the function reads only [null](../../sql-reference/data-types/nullable.md#finding-null) subcolumn instead of reading and processing the whole column data. The query `SELECT n IS NULL FROM table` transforms to `SELECT n.null FROM TABLE`.
 
@@ -297,12 +373,12 @@ SELECT x+100 FROM t_null WHERE y IS NULL
 └──────────────┘
 ```
 
-### IS NOT NULL {#is-not-null}
+### IS NOT NULL {#is_not_null}
 
--   For [Nullable](../../sql-reference/data-types/nullable.md) type values, the `IS NOT NULL` operator returns:
-    -   `0`, if the value is `NULL`.
-    -   `1` otherwise.
--   For other values, the `IS NOT NULL` operator always returns `1`.
+- For [Nullable](../../sql-reference/data-types/nullable.md) type values, the `IS NOT NULL` operator returns:
+    - `0`, if the value is `NULL`.
+    - `1` otherwise.
+- For other values, the `IS NOT NULL` operator always returns `1`.
 
 <!-- -->
 

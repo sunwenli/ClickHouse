@@ -1,19 +1,30 @@
 #include <Backups/BackupFactory.h>
-#include <Backups/BackupInDirectory.h>
-#include <Interpreters/Context.h>
-#include <Disks/IVolume.h>
 
 
 namespace DB
 {
 namespace ErrorCodes
 {
-    extern const int BACKUP_NOT_FOUND;
-    extern const int BACKUP_ALREADY_EXISTS;
-    extern const int NOT_ENOUGH_SPACE;
+    extern const int BACKUP_ENGINE_NOT_FOUND;
     extern const int LOGICAL_ERROR;
 }
 
+
+BackupFactory::CreateParams BackupFactory::CreateParams::getCreateParamsForBaseBackup(BackupInfo base_backup_info_, String old_password) const
+{
+    CreateParams read_params;
+    read_params.open_mode = OpenMode::READ;
+    read_params.backup_info = std::move(base_backup_info_);
+    read_params.context = context;
+    read_params.is_internal_backup = is_internal_backup;
+    read_params.allow_s3_native_copy = allow_s3_native_copy;
+    read_params.allow_azure_native_copy = allow_azure_native_copy;
+    read_params.use_same_s3_credentials_for_base_backup = use_same_s3_credentials_for_base_backup;
+    read_params.use_same_password_for_base_backup = use_same_password_for_base_backup;
+    if (read_params.use_same_password_for_base_backup)
+        read_params.password = old_password;
+    return read_params;
+}
 
 BackupFactory & BackupFactory::instance()
 {
@@ -21,45 +32,40 @@ BackupFactory & BackupFactory::instance()
     return the_instance;
 }
 
-void BackupFactory::setBackupsVolume(VolumePtr backups_volume_)
+BackupMutablePtr BackupFactory::createBackup(const CreateParams & params) const
 {
-    backups_volume = backups_volume_;
+    const String & engine_name = params.backup_info.backup_engine_name;
+    auto it = creators.find(engine_name);
+    if (it == creators.end())
+        throw Exception(ErrorCodes::BACKUP_ENGINE_NOT_FOUND, "Not found backup engine '{}'", engine_name);
+    return (it->second)(params);
 }
 
-BackupMutablePtr BackupFactory::createBackup(const String & backup_name, UInt64 estimated_backup_size, const BackupPtr & base_backup) const
+void BackupFactory::registerBackupEngine(const String & engine_name, const CreatorFn & creator_fn)
 {
-    if (!backups_volume)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "No backups volume");
-
-    for (const auto & disk : backups_volume->getDisks())
-    {
-        if (disk->exists(backup_name))
-            throw Exception(ErrorCodes::BACKUP_ALREADY_EXISTS, "Backup {} already exists", quoteString(backup_name));
-    }
-
-    auto reservation = backups_volume->reserve(estimated_backup_size);
-    if (!reservation)
-        throw Exception(
-            ErrorCodes::NOT_ENOUGH_SPACE,
-            "Couldn't reserve {} bytes of free space for new backup {}",
-            estimated_backup_size,
-            quoteString(backup_name));
-
-    return std::make_shared<BackupInDirectory>(IBackup::OpenMode::WRITE, reservation->getDisk(), backup_name, base_backup);
+    if (creators.contains(engine_name))
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Backup engine '{}' was registered twice", engine_name);
+    creators[engine_name] = creator_fn;
 }
 
-BackupPtr BackupFactory::openBackup(const String & backup_name, const BackupPtr & base_backup) const
+void registerBackupEnginesFileAndDisk(BackupFactory &);
+void registerBackupEngineMemory(BackupFactory &);
+void registerBackupEngineNull(BackupFactory &);
+void registerBackupEngineS3(BackupFactory &);
+void registerBackupEngineAzureBlobStorage(BackupFactory &);
+
+void registerBackupEngines(BackupFactory & factory)
 {
-    if (!backups_volume)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "No backups volume");
+    registerBackupEnginesFileAndDisk(factory);
+    registerBackupEngineMemory(factory);
+    registerBackupEngineNull(factory);
+    registerBackupEngineS3(factory);
+    registerBackupEngineAzureBlobStorage(factory);
+}
 
-    for (const auto & disk : backups_volume->getDisks())
-    {
-        if (disk->exists(backup_name))
-            return std::make_shared<BackupInDirectory>(IBackup::OpenMode::READ, disk, backup_name, base_backup);
-    }
-
-    throw Exception(ErrorCodes::BACKUP_NOT_FOUND, "Backup {} not found", quoteString(backup_name));
+BackupFactory::BackupFactory()
+{
+    registerBackupEngines(*this);
 }
 
 }

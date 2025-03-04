@@ -39,6 +39,15 @@ bool RawBLOBRowInputFormat::readRow(MutableColumns & columns, RowReadExtension &
     return false;
 }
 
+size_t RawBLOBRowInputFormat::countRows(size_t)
+{
+    if (done_count_rows)
+        return 0;
+
+    done_count_rows = true;
+    return 1;
+}
+
 void registerInputFormatRawBLOB(FormatFactory & factory)
 {
     factory.registerInputFormat("RawBLOB", [](
@@ -51,5 +60,13 @@ void registerInputFormatRawBLOB(FormatFactory & factory)
     });
 }
 
+void registerRawBLOBSchemaReader(FormatFactory & factory)
+{
+    factory.registerExternalSchemaReader("RawBLOB", [](
+            const FormatSettings &)
+    {
+        return std::make_shared<RawBLOBSchemaReader>();
+    });
 }
 
+}

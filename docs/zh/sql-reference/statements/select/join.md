@@ -1,5 +1,6 @@
 ---
-toc_title: JOIN
+slug: /zh/sql-reference/statements/select/join
+sidebar_label: JOIN
 ---
 
 # JOIN子句 {#select-join}
@@ -38,8 +39,9 @@ ClickHouse中提供的其他联接类型:
 
 ## 严格 {#join-settings}
 
-!!! note "注"
-    可以使用以下方式复盖默认的严格性值 [join_default_strictness](../../../operations/settings/settings.md#settings-join_default_strictness) 设置。
+:::note
+可以使用以下方式复盖默认的严格性值 [join_default_strictness](../../../operations/settings/settings.md#settings-join_default_strictness) 设置。
+:::
 
     Also the behavior of ClickHouse server for `ANY JOIN` operations depends on the [any_join_distinct_right_table_keys](../../../operations/settings/settings.md#any_join_distinct_right_table_keys) setting.
 
@@ -90,8 +92,9 @@ USING (equi_column1, ... equi_columnN, asof_column)
 
 `ASOF JOIN`会从 `table_2` 中的用户事件时间戳找出和 `table_1` 中用户事件时间戳中最近的一个时间戳，来满足最接近匹配的条件。如果有得话，则相等的时间戳值是最接近的值。在此例中，`user_id` 列可用于条件匹配，`ev_time` 列可用于最接近匹配。在此例中，`event_1_1` 可以 JOIN `event_2_1`，`event_1_2` 可以JOIN `event_2_3`，但是 `event_2_2` 不能被JOIN。
 
-!!! note "注"
-    `ASOF JOIN`在 [JOIN](../../../engines/table-engines/special/join.md) 表引擎中 **不受** 支持。
+:::note
+`ASOF JOIN`在 [JOIN](../../../engines/table-engines/special/join.md) 表引擎中 **不受** 支持。
+:::
 
 ## 分布式联接 {#global-join}
 
@@ -100,7 +103,7 @@ USING (equi_column1, ... equi_columnN, asof_column)
 -   当使用正常 `JOIN`，将查询发送到远程服务器。 为了创建正确的表，在每个子查询上运行子查询，并使用此表执行联接。 换句话说，在每个服务器上单独形成右表。
 -   使用时 `GLOBAL ... JOIN`，首先请求者服务器运行一个子查询来计算正确的表。 此临时表将传递到每个远程服务器，并使用传输的临时数据对其运行查询。
 
-使用时要小心 `GLOBAL`. 有关详细信息，请参阅 [分布式子查询](../../../sql-reference/operators/in.md#select-distributed-subqueries) 科。
+使用时要小心 `GLOBAL`. 有关详细信息，请参阅 [分布式子查询](/sql-reference/operators/in#distributed-subqueries) 科。
 
 ## 使用建议 {#usage-recommendations}
 

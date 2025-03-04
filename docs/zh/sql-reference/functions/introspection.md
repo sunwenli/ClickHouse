@@ -1,8 +1,9 @@
 ---
+slug: /zh/sql-reference/functions/introspection
 machine_translated: true
 machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 65
-toc_title: "\u81EA\u7701"
+sidebar_position: 65
+sidebar_label: "\u81EA\u7701"
 ---
 
 # 内省功能 {#introspection-functions}
@@ -20,7 +21,7 @@ toc_title: "\u81EA\u7701"
 
         出于安全考虑，内省函数默认是关闭的。
 
-ClickHouse将探查器报告保存到 [trace_log](../../operations/system-tables/trace_log.md#system_tables-trace_log) 系统表. 确保正确配置了表和探查器。
+ClickHouse将探查器报告保存到 [trace_log](/operations/system-tables/trace_log) 系统表. 确保正确配置了表和探查器。
 
 ## addressToLine {#addresstoline}
 

@@ -1,16 +1,33 @@
 ---
-toc_priority: 39
-toc_title: EXPLAIN
+slug: /sql-reference/statements/explain
+sidebar_position: 39
+sidebar_label: EXPLAIN
+title: "EXPLAIN Statement"
 ---
 
-# EXPLAIN Statement {#explain}
-
 Shows the execution plan of a statement.
+
+<div class='vimeo-container'>
+  <iframe src="//www.youtube.com/embed/hP6G2Nlz_cA"
+    width="640"
+    height="360"
+    frameborder="0"
+    allow="autoplay;
+    fullscreen;
+    picture-in-picture"
+    allowfullscreen>
+  </iframe>
+</div>
 
 Syntax:
 
 ```sql
-EXPLAIN [AST | SYNTAX | PLAN | PIPELINE] [setting = value, ...] SELECT ... [FORMAT ...]
+EXPLAIN [AST | SYNTAX | QUERY TREE | PLAN | PIPELINE | ESTIMATE | TABLE OVERRIDE] [setting = value, ...]
+    [
+      SELECT ... |
+      tableFunction(...) [COLUMNS (...)] [ORDER BY ...] [PARTITION BY ...] [PRIMARY KEY] [SAMPLE BY ...] [TTL ...]
+    ]
+    [FORMAT ...]
 ```
 
 Example:
@@ -40,10 +57,11 @@ Union
 
 ## EXPLAIN Types {#explain-types}
 
--  `AST` — Abstract syntax tree.
--  `SYNTAX` — Query text after AST-level optimizations.
--  `PLAN` — Query execution plan.
--  `PIPELINE` — Query execution pipeline.
+- `AST` — Abstract syntax tree.
+- `SYNTAX` — Query text after AST-level optimizations.
+- `QUERY TREE` — Query tree after Query Tree level optimizations.
+- `PLAN` — Query execution plan.
+- `PIPELINE` — Query execution pipeline.
 
 ### EXPLAIN AST {#explain-ast}
 
@@ -105,17 +123,45 @@ FROM
 CROSS JOIN system.numbers AS c
 ```
 
+### EXPLAIN QUERY TREE {#explain-query-tree}
+
+Settings:
+
+- `run_passes` — Run all query tree passes before dumping the query tree. Default: `1`.
+- `dump_passes` — Dump information about used passes before dumping the query tree. Default: `0`.
+- `passes` — Specifies how many passes to run. If set to `-1`, runs all the passes. Default: `-1`.
+
+Example:
+```sql
+EXPLAIN QUERY TREE SELECT id, value FROM test_table;
+```
+
+```sql
+QUERY id: 0
+  PROJECTION COLUMNS
+    id UInt64
+    value String
+  PROJECTION
+    LIST id: 1, nodes: 2
+      COLUMN id: 2, column_name: id, result_type: UInt64, source_id: 3
+      COLUMN id: 4, column_name: value, result_type: String, source_id: 3
+  JOIN TREE
+    TABLE id: 3, table_name: default.test_table
+```
+
 ### EXPLAIN PLAN {#explain-plan}
 
 Dump query plan steps.
 
 Settings:
 
--   `header` — Prints output header for step. Default: 0.
--   `description` — Prints step description. Default: 1.
--   `indexes` — Shows used indexes, the number of filtered parts and the number of filtered granules for every index applied. Default: 0. Supported for [MergeTree](../../engines/table-engines/mergetree-family/mergetree.md) tables.
--   `actions` — Prints detailed information about step actions. Default: 0.
--   `json` — Prints query plan steps as a row in [JSON](../../interfaces/formats.md#json) format. Default: 0. It is recommended to use [TSVRaw](../../interfaces/formats.md#tabseparatedraw) format to avoid unnecessary escaping.
+- `header` — Prints output header for step. Default: 0.
+- `description` — Prints step description. Default: 1.
+- `indexes` — Shows used indexes, the number of filtered parts and the number of filtered granules for every index applied. Default: 0. Supported for [MergeTree](../../engines/table-engines/mergetree-family/mergetree.md) tables.
+- `actions` — Prints detailed information about step actions. Default: 0.
+- `json` — Prints query plan steps as a row in [JSON](../../interfaces/formats.md#json) format. Default: 0. It is recommended to use [TSVRaw](../../interfaces/formats.md#tabseparatedraw) format to avoid unnecessary escaping.
+
+When `json=1` step names will contain an additional suffix with unique step identifier.
 
 Example:
 
@@ -133,8 +179,9 @@ Union
           ReadFromStorage (SystemNumbers)
 ```
 
-!!! note "Note"
-    Step and query cost estimation is not supported.
+:::note    
+Step and query cost estimation is not supported.
+:::
 
 When `json = 1`, the query plan is represented in JSON format. Every node is a dictionary that always has the keys `Node Type` and `Plans`. `Node Type` is a string with a step name. `Plans` is an array with child step descriptions. Other optional keys may be added depending on node type and settings.
 
@@ -149,30 +196,25 @@ EXPLAIN json = 1, description = 0 SELECT 1 UNION ALL SELECT 2 FORMAT TSVRaw;
   {
     "Plan": {
       "Node Type": "Union",
+      "Node Id": "Union_10",
       "Plans": [
         {
           "Node Type": "Expression",
+          "Node Id": "Expression_13",
           "Plans": [
             {
-              "Node Type": "SettingQuotaAndLimits",
-              "Plans": [
-                {
-                  "Node Type": "ReadFromStorage"
-                }
-              ]
+              "Node Type": "ReadFromStorage",
+              "Node Id": "ReadFromStorage_0"
             }
           ]
         },
         {
           "Node Type": "Expression",
+          "Node Id": "Expression_16",
           "Plans": [
             {
-              "Node Type": "SettingQuotaAndLimits",
-              "Plans": [
-                {
-                  "Node Type": "ReadFromStorage"
-                }
-              ]
+              "Node Type": "ReadFromStorage",
+              "Node Id": "ReadFromStorage_4"
             }
           ]
         }
@@ -204,6 +246,7 @@ EXPLAIN json = 1, description = 0, header = 1 SELECT 1, 2 + dummy;
   {
     "Plan": {
       "Node Type": "Expression",
+      "Node Id": "Expression_5",
       "Header": [
         {
           "Name": "1",
@@ -216,22 +259,12 @@ EXPLAIN json = 1, description = 0, header = 1 SELECT 1, 2 + dummy;
       ],
       "Plans": [
         {
-          "Node Type": "SettingQuotaAndLimits",
+          "Node Type": "ReadFromStorage",
+          "Node Id": "ReadFromStorage_0",
           "Header": [
             {
               "Name": "dummy",
               "Type": "UInt8"
-            }
-          ],
-          "Plans": [
-            {
-              "Node Type": "ReadFromStorage",
-              "Header": [
-                {
-                  "Name": "dummy",
-                  "Type": "UInt8"
-                }
-              ]
             }
           ]
         }
@@ -243,14 +276,12 @@ EXPLAIN json = 1, description = 0, header = 1 SELECT 1, 2 + dummy;
 
 With `indexes` = 1, the `Indexes` key is added. It contains an array of used indexes. Each index is described as JSON with `Type` key (a string `MinMax`, `Partition`, `PrimaryKey` or `Skip`) and optional keys:
 
--   `Name` — An index name (for now, is used only for `Skip` index).
--   `Keys` — An array of columns used by the index.
--   `Condition` — A string with condition used.
--   `Description` — An index (for now, is used only for `Skip` index).
--   `Initial Parts` — A number of parts before the index is applied.
--   `Selected Parts` — A number of parts after the index is applied.
--   `Initial Granules` — A number of granules before the index is applied.
--   `Selected Granulesis` — A number of granules after the index is applied.
+- `Name` — The index name (currently only used for `Skip` indexes).
+- `Keys` — The array of columns used by the index.
+- `Condition` —  The used condition.
+- `Description` — The index description (currently only used for `Skip` indexes).
+- `Parts` — The number of parts before/after the index is applied.
+- `Granules` — The number of granules before/after the index is applied.
 
 Example:
 
@@ -261,46 +292,36 @@ Example:
     "Type": "MinMax",
     "Keys": ["y"],
     "Condition": "(y in [1, +inf))",
-    "Initial Parts": 5,
-    "Selected Parts": 4,
-    "Initial Granules": 12,
-    "Selected Granules": 11
+    "Parts": 5/4,
+    "Granules": 12/11
   },
   {
     "Type": "Partition",
     "Keys": ["y", "bitAnd(z, 3)"],
     "Condition": "and((bitAnd(z, 3) not in [1, 1]), and((y in [1, +inf)), (bitAnd(z, 3) not in [1, 1])))",
-    "Initial Parts": 4,
-    "Selected Parts": 3,
-    "Initial Granules": 11,
-    "Selected Granules": 10
+    "Parts": 4/3,
+    "Granules": 11/10
   },
   {
     "Type": "PrimaryKey",
     "Keys": ["x", "y"],
     "Condition": "and((x in [11, +inf)), (y in [1, +inf)))",
-    "Initial Parts": 3,
-    "Selected Parts": 2,
-    "Initial Granules": 10,
-    "Selected Granules": 6
+    "Parts": 3/2,
+    "Granules": 10/6
   },
   {
     "Type": "Skip",
     "Name": "t_minmax",
     "Description": "minmax GRANULARITY 2",
-    "Initial Parts": 2,
-    "Selected Parts": 1,
-    "Initial Granules": 6,
-    "Selected Granules": 2
+    "Parts": 2/1,
+    "Granules": 6/2
   },
   {
     "Type": "Skip",
     "Name": "t_set",
     "Description": "set GRANULARITY 2",
-    "Initial Parts": 1,
-    "Selected Parts": 1,
-    "Initial Granules": 2,
-    "Selected Granules": 1
+    "": 1/1,
+    "Granules": 2/1
   }
 ]
 ```
@@ -318,17 +339,31 @@ EXPLAIN json = 1, actions = 1, description = 0 SELECT 1 FORMAT TSVRaw;
   {
     "Plan": {
       "Node Type": "Expression",
+      "Node Id": "Expression_5",
       "Expression": {
-        "Inputs": [],
+        "Inputs": [
+          {
+            "Name": "dummy",
+            "Type": "UInt8"
+          }
+        ],
         "Actions": [
           {
-            "Node Type": "Column",
+            "Node Type": "INPUT",
             "Result Type": "UInt8",
-            "Result Type": "Column",
+            "Result Name": "dummy",
+            "Arguments": [0],
+            "Removed Arguments": [0],
+            "Result": 0
+          },
+          {
+            "Node Type": "COLUMN",
+            "Result Type": "UInt8",
+            "Result Name": "1",
             "Column": "Const(UInt8)",
             "Arguments": [],
             "Removed Arguments": [],
-            "Result": 0
+            "Result": 1
           }
         ],
         "Outputs": [
@@ -337,17 +372,12 @@ EXPLAIN json = 1, actions = 1, description = 0 SELECT 1 FORMAT TSVRaw;
             "Type": "UInt8"
           }
         ],
-        "Positions": [0],
-        "Project Input": true
+        "Positions": [1]
       },
       "Plans": [
         {
-          "Node Type": "SettingQuotaAndLimits",
-          "Plans": [
-            {
-              "Node Type": "ReadFromStorage"
-            }
-          ]
+          "Node Type": "ReadFromStorage",
+          "Node Id": "ReadFromStorage_0"
         }
       ]
     }
@@ -359,9 +389,11 @@ EXPLAIN json = 1, actions = 1, description = 0 SELECT 1 FORMAT TSVRaw;
 
 Settings:
 
--   `header` — Prints header for each output port. Default: 0.
--   `graph` — Prints a graph described in the [DOT](https://en.wikipedia.org/wiki/DOT_(graph_description_language)) graph description language. Default: 0.
--   `compact` — Prints graph in compact mode if `graph` setting is enabled. Default: 1.
+- `header` — Prints header for each output port. Default: 0.
+- `graph` — Prints a graph described in the [DOT](https://en.wikipedia.org/wiki/DOT_(graph_description_language)) graph description language. Default: 0.
+- `compact` — Prints graph in compact mode if `graph` setting is enabled. Default: 1.
+
+When `compact=0` and `graph=1` processor names will contain an additional suffix with unique processor identifier.
 
 Example:
 
@@ -382,7 +414,7 @@ ExpressionTransform
         ExpressionTransform × 2
           (SettingQuotaAndLimits)
             (ReadFromStorage)
-            NumbersMt × 2 0 → 1
+            NumbersRange × 2 0 → 1
 ```
 ### EXPLAIN ESTIMATE {#explain-estimate}
 
@@ -412,4 +444,35 @@ Result:
 └──────────┴───────┴───────┴──────┴───────┘
 ```
 
-[Оriginal article](https://clickhouse.com/docs/en/sql-reference/statements/explain/) <!--hide-->
+### EXPLAIN TABLE OVERRIDE {#explain-table-override}
+
+Shows the result of a table override on a table schema accessed through a table function.
+Also does some validation, throwing an exception if the override would have caused some kind of failure.
+
+**Example**
+
+Assume you have a remote MySQL table like this:
+
+```sql
+CREATE TABLE db.tbl (
+    id INT PRIMARY KEY,
+    created DATETIME DEFAULT now()
+)
+```
+
+```sql
+EXPLAIN TABLE OVERRIDE mysql('127.0.0.1:3306', 'db', 'tbl', 'root', 'clickhouse')
+PARTITION BY toYYYYMM(assumeNotNull(created))
+```
+
+Result:
+
+```text
+┌─explain─────────────────────────────────────────────────┐
+│ PARTITION BY uses columns: `created` Nullable(DateTime) │
+└─────────────────────────────────────────────────────────┘
+```
+
+:::note    
+The validation is not complete, so a successful query does not guarantee that the override would not cause issues.
+:::

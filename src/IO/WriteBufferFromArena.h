@@ -4,6 +4,8 @@
 #include <base/StringRef.h>
 #include <IO/WriteBuffer.h>
 
+#include <algorithm>
+
 
 namespace DB
 {
@@ -15,6 +17,23 @@ namespace DB
   */
 class WriteBufferFromArena final : public WriteBuffer
 {
+public:
+    /// begin_ - start of previously used contiguous memory segment or nullptr (see Arena::allocContinue method).
+    WriteBufferFromArena(Arena & arena_, const char *& begin_)
+        : WriteBuffer(nullptr, 0), arena(arena_), begin(begin_)
+    {
+        nextImpl();
+        pos = working_buffer.begin();
+    }
+
+    StringRef complete()
+    {
+        /// Return over-allocated memory back into arena.
+        arena.rollback(buffer().end() - position());
+        /// Reference to written data.
+        return { position() - count(), count() };
+    }
+
 private:
     Arena & arena;
     const char *& begin;
@@ -34,8 +53,7 @@ private:
         /// the most stupid way possible, because the real fix for this is to
         /// tear down the entire WriteBuffer thing and implement it again,
         /// properly.
-        size_t continuation_size = std::max(size_t(1),
-            std::max(count(), arena.remainingSpaceInCurrentMemoryChunk()));
+        size_t continuation_size = std::max({size_t(1), count(), arena.remainingSpaceInCurrentMemoryChunk()});
 
         /// allocContinue method will possibly move memory region to new place and modify "begin" pointer.
 
@@ -47,22 +65,9 @@ private:
         buffer() = Buffer(continuation, end);
     }
 
-public:
-    /// begin_ - start of previously used contiguous memory segment or nullptr (see Arena::allocContinue method).
-    WriteBufferFromArena(Arena & arena_, const char *& begin_)
-        : WriteBuffer(nullptr, 0), arena(arena_), begin(begin_)
-    {
-        nextImpl();
-        pos = working_buffer.begin();
-    }
-
-    StringRef finish()
-    {
-        /// Return over-allocated memory back into arena.
-        arena.rollback(buffer().end() - position());
-        /// Reference to written data.
-        return { position() - count(), count() };
-    }
+    /// it is super strange,
+    /// but addition next call changes the data in serializeValueIntoArena result
+    void finalizeImpl() override { /* no op */ }
 };
 
 }

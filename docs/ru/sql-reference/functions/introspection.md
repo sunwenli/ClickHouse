@@ -1,14 +1,16 @@
 ---
-toc_priority: 65
-toc_title: "Функции интроспекции"
+slug: /ru/sql-reference/functions/introspection
+sidebar_position: 65
+sidebar_label: "Функции интроспекции"
 ---
 
 # Функции интроспекции {#introspection-functions}
 
 Функции из этого раздела могут использоваться для интроспекции [ELF](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format) и [DWARF](https://en.wikipedia.org/wiki/DWARF) в целях профилирования запросов.
 
-!!! warning "Предупреждение"
-    Эти функции выполняются медленно и могут приводить к нежелательным последствиям в плане безопасности.
+:::danger Предупреждение
+Эти функции выполняются медленно и могут приводить к нежелательным последствиям в плане безопасности.
+:::
 
 Для правильной работы функций интроспекции:
 
@@ -18,9 +20,9 @@ toc_title: "Функции интроспекции"
 
 Из соображений безопасности данные функции отключены по умолчанию.
 
-ClickHouse сохраняет отчеты профилировщика в [журнал трассировки](../../operations/system-tables/trace_log.md#system_tables-trace_log) в системной таблице. Убедитесь, что таблица и профилировщик настроены правильно.
+ClickHouse сохраняет отчеты профилировщика в [журнал трассировки](/operations/system-tables/trace_log) в системной таблице. Убедитесь, что таблица и профилировщик настроены правильно.
 
-## addresssToLine {#addresstoline}
+## addressToLine {#addresstoline}
 
 Преобразует адрес виртуальной памяти внутри процесса сервера ClickHouse в имя файла и номер строки в исходном коде ClickHouse.
 
@@ -98,7 +100,7 @@ LIMIT 1
 \G
 ```
 
-Функция [arrayMap](../../sql-reference/functions/array-functions.md#array-map) позволяет обрабатывать каждый отдельный элемент массива `trace` с помощью функции `addressToLine`. Результат этой обработки вы видите в виде `trace_source_code_lines` колонки выходных данных.
+Функция [arrayMap](/sql-reference/functions/array-functions#arraymapfunc-arr1-)) позволяет обрабатывать каждый отдельный элемент массива `trace` с помощью функции `addressToLine`. Результат этой обработки вы видите в виде `trace_source_code_lines` колонки выходных данных.
 
 ``` text
 Row 1:
@@ -184,7 +186,7 @@ LIMIT 1
 \G
 ```
 
-То [arrayMap](../../sql-reference/functions/array-functions.md#array-map) функция позволяет обрабатывать каждый отдельный элемент системы. `trace` массив по типу `addressToSymbols` функция. Результат этой обработки вы видите в виде `trace_symbols` колонка выходных данных.
+То [arrayMap](/sql-reference/functions/array-functions#arraymapfunc-arr1-)) функция позволяет обрабатывать каждый отдельный элемент системы. `trace` массив по типу `addressToSymbols` функция. Результат этой обработки вы видите в виде `trace_symbols` колонка выходных данных.
 
 ``` text
 Row 1:
@@ -281,7 +283,7 @@ LIMIT 1
 \G
 ```
 
-Функция [arrayMap](../../sql-reference/functions/array-functions.md#array-map) позволяет обрабатывать каждый отдельный элемент массива `trace` с помощью функции `demangle`.
+Функция [arrayMap](/sql-reference/functions/array-functions#arraymapfunc-arr1-)) позволяет обрабатывать каждый отдельный элемент массива `trace` с помощью функции `demangle`.
 
 ``` text
 Row 1:
@@ -319,7 +321,7 @@ tid()
 
 **Возвращаемое значение**
 
--   Id текущего потока. [Uint64](../../sql-reference/data-types/int-uint.md#uint-ranges).
+-   Id текущего потока. [Uint64](/sql-reference/data-types/int-uint#integer-ranges).
 
 **Пример**
 
@@ -370,5 +372,3 @@ SELECT logTrace('logTrace message');
 │                            0 │
 └──────────────────────────────┘
 ```
-
-[Original article](https://clickhouse.com/docs/en/query_language/functions/introspection/) <!--hide-->

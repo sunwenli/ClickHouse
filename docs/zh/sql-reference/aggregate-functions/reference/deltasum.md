@@ -1,5 +1,6 @@
 ---
-toc_priority: 141
+slug: /zh/sql-reference/aggregate-functions/reference/deltasum
+sidebar_position: 141
 ---
 
 # deltaSum {#agg_functions-deltasum}
@@ -66,4 +67,4 @@ SELECT deltaSum(arrayJoin([2.25, 3, 4.5]));
 
 **参见**
 
--   [runningDifference](../../functions/other-functions.md#other_functions-runningdifference)
+-   [runningDifference](/sql-reference/functions/other-functions#runningDifference)

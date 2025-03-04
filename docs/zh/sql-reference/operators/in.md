@@ -1,4 +1,5 @@
 ---
+slug: /zh/sql-reference/operators/in
 machine_translated: true
 machine_translated_rev: 5decc73b5dc60054f19087d3690c4eb99446a6c3
 ---
@@ -69,7 +70,7 @@ IN子句中的子查询始终只在单个服务器上运行一次。 没有依�
 
 ## 空处理 {#in-null-processing}
 
-在请求处理过程中， `IN` 运算符假定运算的结果 [NULL](../../sql-reference/syntax.md#null-literal) 总是等于 `0`，无论是否 `NULL` 位于操作员的右侧或左侧。 `NULL` 值不包含在任何数据集中，彼此不对应，并且在以下情况下无法进行比较 [transform_null_in=0](../../operations/settings/settings.md#transform_null_in).
+在请求处理过程中， `IN` 运算符假定运算的结果 [NULL](/operations/settings/formats#input_format_null_as_default) 总是等于 `0`，无论是否 `NULL` 位于操作员的右侧或左侧。 `NULL` 值不包含在任何数据集中，彼此不对应，并且在以下情况下无法进行比较 [transform_null_in=0](../../operations/settings/settings.md#transform_null_in).
 
 下面是一个例子 `t_null` 表:
 
@@ -106,8 +107,9 @@ FROM t_null
 
 带子查询的IN-s有两个选项（类似于连接）：normal `IN` / `JOIN` 和 `GLOBAL IN` / `GLOBAL JOIN`. 它们在分布式查询处理的运行方式上有所不同。
 
-!!! attention "注意"
-    请记住，下面描述的算法可能会有不同的工作方式取决于 [设置](../../operations/settings/settings.md) `distributed_product_mode` 设置。
+:::info "注意"
+请记住，下面描述的算法可能会有不同的工作方式取决于 [设置](../../operations/settings/settings.md) `distributed_product_mode` 设置。
+:::
 
 当使用常规IN时，查询被发送到远程服务器，并且它们中的每个服务器都在运行子查询 `IN` 或 `JOIN` 条款
 

@@ -1,8 +1,11 @@
 ---
+slug: /ru/faq/general/columnar-database
 title: Что такое столбцовая база данных?
-toc_hidden: true
-toc_priority: 101
+sidebar_position: 101
 ---
+
+import RowOriented from '@site/static/images/row-oriented.gif';
+import ColumnOriented from '@site/static/images/column-oriented.gif';
 
 # Что такое столбцовая (колоночная) база данных? {#what-is-a-columnar-database}
 
@@ -17,9 +20,10 @@ toc_priority: 101
 Ниже — иллюстрация того, как извлекаются данные для отчетов при использовании обычной строковой СУБД и столбцовой СУБД:
 
 **Стандартная строковая СУБД**
-![Стандартная строковая СУБД](/docs/en/images/row-oriented.gif#)
+
+<img src={RowOriented} alt="Стандартная строковая СУБД" />
 
 **Столбцовая СУБД**
-![Столбцовая СУБД](/docs/en/images/column-oriented.gif#)
+<img src={ColumnOriented} alt="Столбцовая СУБД" />
 
 Для аналитических приложений столбцовые СУБД предпочтительнее, так как в них можно хранить много столбцов в таблице просто на всякий случай, и это не будет сказываться на скорости чтения данных. Столбцовые СУБД предназначены для обработки и хранения больших данных. Они прекрасно масштабируются при помощи распределенных кластеров на относительно недорогих серверах — для увеличения производительности. В ClickHouse для этого используются [распределенные](../../engines/table-engines/special/distributed.md) и [реплицированные](../../engines/table-engines/mergetree-family/replication.md) таблицы.

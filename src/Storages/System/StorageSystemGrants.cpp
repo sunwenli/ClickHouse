@@ -7,8 +7,8 @@
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnsNumber.h>
-#include <Access/AccessControlManager.h>
-#include <Access/AccessRightsElement.h>
+#include <Access/AccessControl.h>
+#include <Access/Common/AccessRightsElement.h>
 #include <Access/Role.h>
 #include <Access/User.h>
 #include <Interpreters/Context.h>
@@ -17,28 +17,34 @@
 
 namespace DB
 {
-using EntityType = IAccessEntity::Type;
 
-NamesAndTypesList StorageSystemGrants::getNamesAndTypes()
+ColumnsDescription StorageSystemGrants::getColumnsDescription()
 {
-    NamesAndTypesList names_and_types{
-        {"user_name", std::make_shared<DataTypeNullable>(std::make_shared<DataTypeString>())},
-        {"role_name", std::make_shared<DataTypeNullable>(std::make_shared<DataTypeString>())},
-        {"access_type", std::make_shared<DataTypeEnum8>(StorageSystemPrivileges::getAccessTypeEnumValues())},
-        {"database", std::make_shared<DataTypeNullable>(std::make_shared<DataTypeString>())},
-        {"table", std::make_shared<DataTypeNullable>(std::make_shared<DataTypeString>())},
-        {"column", std::make_shared<DataTypeNullable>(std::make_shared<DataTypeString>())},
-        {"is_partial_revoke", std::make_shared<DataTypeUInt8>()},
-        {"grant_option", std::make_shared<DataTypeUInt8>()},
+    return ColumnsDescription
+    {
+        {"user_name", std::make_shared<DataTypeNullable>(std::make_shared<DataTypeString>()), "User name."},
+        {"role_name", std::make_shared<DataTypeNullable>(std::make_shared<DataTypeString>()), "Role assigned to user account."},
+        {"access_type", std::make_shared<DataTypeEnum16>(StorageSystemPrivileges::getAccessTypeEnumValues()), "Access parameters for ClickHouse user account."},
+        {"database", std::make_shared<DataTypeNullable>(std::make_shared<DataTypeString>()), "Name of a database."},
+        {"table", std::make_shared<DataTypeNullable>(std::make_shared<DataTypeString>()), "Name of a table."},
+        {"column", std::make_shared<DataTypeNullable>(std::make_shared<DataTypeString>()), "Name of a column to which access is granted."},
+        {"is_partial_revoke", std::make_shared<DataTypeUInt8>(),
+            "Logical value. It shows whether some privileges have been revoked. Possible values: "
+            "0 — The row describes a grant, "
+            "1 — The row describes a partial revoke."
+        },
+        {"grant_option", std::make_shared<DataTypeUInt8>(), "Permission is granted WITH GRANT OPTION."},
     };
-    return names_and_types;
 }
 
 
-void StorageSystemGrants::fillData(MutableColumns & res_columns, ContextPtr context, const SelectQueryInfo &) const
+void StorageSystemGrants::fillData(MutableColumns & res_columns, ContextPtr context, const ActionsDAG::Node *, std::vector<UInt8>) const
 {
-    context->checkAccess(AccessType::SHOW_USERS | AccessType::SHOW_ROLES);
-    const auto & access_control = context->getAccessControlManager();
+    /// If "select_from_system_db_requires_grant" is enabled the access rights were already checked in InterpreterSelectQuery.
+    const auto & access_control = context->getAccessControl();
+    if (!access_control.doesSelectFromSystemDatabaseRequireGrant())
+        context->checkAccess(AccessType::SHOW_USERS | AccessType::SHOW_ROLES);
+
     std::vector<UUID> ids = access_control.findAll<User>();
     boost::range::push_back(ids, access_control.findAll<Role>());
 
@@ -47,7 +53,7 @@ void StorageSystemGrants::fillData(MutableColumns & res_columns, ContextPtr cont
     auto & column_user_name_null_map = assert_cast<ColumnNullable &>(*res_columns[column_index++]).getNullMapData();
     auto & column_role_name = assert_cast<ColumnString &>(assert_cast<ColumnNullable &>(*res_columns[column_index]).getNestedColumn());
     auto & column_role_name_null_map = assert_cast<ColumnNullable &>(*res_columns[column_index++]).getNullMapData();
-    auto & column_access_type = assert_cast<ColumnInt8 &>(*res_columns[column_index++]).getData();
+    auto & column_access_type = assert_cast<ColumnInt16 &>(*res_columns[column_index++]).getData();
     auto & column_database = assert_cast<ColumnString &>(assert_cast<ColumnNullable &>(*res_columns[column_index]).getNestedColumn());
     auto & column_database_null_map = assert_cast<ColumnNullable &>(*res_columns[column_index++]).getNullMapData();
     auto & column_table = assert_cast<ColumnString &>(assert_cast<ColumnNullable &>(*res_columns[column_index]).getNestedColumn());
@@ -58,7 +64,7 @@ void StorageSystemGrants::fillData(MutableColumns & res_columns, ContextPtr cont
     auto & column_grant_option = assert_cast<ColumnUInt8 &>(*res_columns[column_index++]).getData();
 
     auto add_row = [&](const String & grantee_name,
-                       EntityType grantee_type,
+                       AccessEntityType grantee_type,
                        AccessType access_type,
                        const String * database,
                        const String * table,
@@ -66,14 +72,14 @@ void StorageSystemGrants::fillData(MutableColumns & res_columns, ContextPtr cont
                        bool is_partial_revoke,
                        bool grant_option)
     {
-        if (grantee_type == EntityType::USER)
+        if (grantee_type == AccessEntityType::USER)
         {
             column_user_name.insertData(grantee_name.data(), grantee_name.length());
             column_user_name_null_map.push_back(false);
             column_role_name.insertDefault();
             column_role_name_null_map.push_back(true);
         }
-        else if (grantee_type == EntityType::ROLE)
+        else if (grantee_type == AccessEntityType::ROLE)
         {
             column_user_name.insertDefault();
             column_user_name_null_map.push_back(true);
@@ -83,7 +89,7 @@ void StorageSystemGrants::fillData(MutableColumns & res_columns, ContextPtr cont
         else
             assert(false);
 
-        column_access_type.push_back(static_cast<Int8>(access_type));
+        column_access_type.push_back(static_cast<Int16>(access_type));
 
         if (database)
         {
@@ -123,19 +129,19 @@ void StorageSystemGrants::fillData(MutableColumns & res_columns, ContextPtr cont
     };
 
     auto add_rows = [&](const String & grantee_name,
-                        IAccessEntity::Type grantee_type,
+                        AccessEntityType grantee_type,
                         const AccessRightsElements & elements)
     {
         for (const auto & element : elements)
         {
             auto access_types = element.access_flags.toAccessTypes();
-            if (access_types.empty() || (!element.any_column && element.columns.empty()))
+            if (access_types.empty() || (!element.anyColumn() && element.columns.empty()))
                 continue;
 
-            const auto * database = element.any_database ? nullptr : &element.database;
-            const auto * table = element.any_table ? nullptr : &element.table;
+            const auto * database = element.anyDatabase() ? nullptr : &element.database;
+            const auto * table = element.anyTable() ? nullptr : &element.table;
 
-            if (element.any_column)
+            if (element.anyColumn())
             {
                 for (const auto & access_type : access_types)
                     add_row(grantee_name, grantee_type, access_type, database, table, nullptr, element.is_partial_revoke, element.grant_option);

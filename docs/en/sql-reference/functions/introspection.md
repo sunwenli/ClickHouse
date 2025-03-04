@@ -1,24 +1,26 @@
 ---
-toc_priority: 65
-toc_title: Introspection
+slug: /sql-reference/functions/introspection
+sidebar_position: 100
+sidebar_label: Introspection
 ---
 
-# Introspection Functions {#introspection-functions}
+# Introspection Functions
 
 You can use functions described in this chapter to introspect [ELF](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format) and [DWARF](https://en.wikipedia.org/wiki/DWARF) for query profiling.
 
-!!! warning "Warning"
-    These functions are slow and may impose security considerations.
+:::note    
+These functions are slow and may impose security considerations.
+:::
 
 For proper operation of introspection functions:
 
--   Install the `clickhouse-common-static-dbg` package.
+- Install the `clickhouse-common-static-dbg` package.
 
--   Set the [allow_introspection_functions](../../operations/settings/settings.md#settings-allow_introspection_functions) setting to 1.
+- Set the [allow_introspection_functions](../../operations/settings/settings.md#allow_introspection_functions) setting to 1.
 
         For security reasons introspection functions are disabled by default.
 
-ClickHouse saves profiler reports to the [trace_log](../../operations/system-tables/trace_log.md#system_tables-trace_log) system table. Make sure the table and profiler are configured properly.
+ClickHouse saves profiler reports to the [trace_log](/operations/system-tables/trace_log) system table. Make sure the table and profiler are configured properly.
 
 ## addressToLine {#addresstoline}
 
@@ -34,17 +36,14 @@ addressToLine(address_of_binary_instruction)
 
 **Arguments**
 
--   `address_of_binary_instruction` ([UInt64](../../sql-reference/data-types/int-uint.md)) — Address of instruction in a running process.
+- `address_of_binary_instruction` ([UInt64](../data-types/int-uint.md)) — Address of instruction in a running process.
 
 **Returned value**
 
--   Source code filename and the line number in this file delimited by colon.
-
+- Source code filename and the line number in this file delimited by colon.
         For example, `/build/obj-x86_64-linux-gnu/../src/Common/ThreadPool.cpp:199`, where `199` is a line number.
-
--   Name of a binary, if the function couldn’t find the debug information.
-
--   Empty string, if the address is not valid.
+- Name of a binary, if the function couldn't find the debug information.
+- Empty string, if the address is not valid.
 
 Type: [String](../../sql-reference/data-types/string.md).
 
@@ -98,7 +97,7 @@ LIMIT 1
 \G
 ```
 
-The [arrayMap](../../sql-reference/functions/array-functions.md#array-map) function allows to process each individual element of the `trace` array by the `addressToLine` function. The result of this processing you see in the `trace_source_code_lines` column of output.
+The [arrayMap](/sql-reference/functions/array-functions#arraymapfunc-arr1-)) function allows to process each individual element of the `trace` array by the `addressToLine` function. The result of this processing you see in the `trace_source_code_lines` column of output.
 
 ``` text
 Row 1:
@@ -113,6 +112,107 @@ trace_source_code_lines: /lib/x86_64-linux-gnu/libpthread-2.27.so
 /build/glibc-OTsEL5/glibc-2.27/misc/../sysdeps/unix/sysv/linux/x86_64/clone.S:97
 ```
 
+## addressToLineWithInlines {#addresstolinewithinlines}
+
+Similar to `addressToLine`, but returns an Array with all inline functions. As a result of this, it is slower than `addressToLine`.
+
+:::note
+If you use official ClickHouse packages, you need to install the `clickhouse-common-static-dbg` package.
+:::
+
+**Syntax**
+
+``` sql
+addressToLineWithInlines(address_of_binary_instruction)
+```
+
+**Arguments**
+
+- `address_of_binary_instruction` ([UInt64](../data-types/int-uint.md)) — Address of instruction in a running process.
+
+**Returned value**
+
+- An array whose first element is the source code filename and line number in the file delimited by a colon. From the second element onwards, inline functions' source code filenames, line numbers and function names are listed. If the function couldn't find the debug information, then an array with a single element equal to the name of the binary is returned, otherwise an empty array is returned if the address is not valid. [Array(String)](../data-types/array.md).
+
+**Example**
+
+Enabling introspection functions:
+
+``` sql
+SET allow_introspection_functions=1;
+```
+
+Applying the function to address.
+
+```sql
+SELECT addressToLineWithInlines(531055181::UInt64);
+```
+
+``` text
+┌─addressToLineWithInlines(CAST('531055181', 'UInt64'))────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ ['./src/Functions/addressToLineWithInlines.cpp:98','./build_normal_debug/./src/Functions/addressToLineWithInlines.cpp:176:DB::(anonymous namespace)::FunctionAddressToLineWithInlines::implCached(unsigned long) const'] │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+Applying the function to the whole stack trace:
+
+``` sql
+SELECT
+    ta, addressToLineWithInlines(arrayJoin(trace) as ta)
+FROM system.trace_log
+WHERE
+    query_id = '5e173544-2020-45de-b645-5deebe2aae54';
+```
+
+The [arrayJoin](../../sql-reference/functions/array-functions.md#array-functions-join) functions will split array to rows.
+
+``` text
+┌────────ta─┬─addressToLineWithInlines(arrayJoin(trace))───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ 365497529 │ ['./build_normal_debug/./contrib/libcxx/include/string_view:252']                                                                                                                                                        │
+│ 365593602 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:191']                                                                                                                                                                      │
+│ 365593866 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:0']                                                                                                                                                                        │
+│ 365592528 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:0']                                                                                                                                                                        │
+│ 365591003 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:477']                                                                                                                                                                      │
+│ 365590479 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:442']                                                                                                                                                                      │
+│ 365590600 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:457']                                                                                                                                                                      │
+│ 365598941 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:0']                                                                                                                                                                        │
+│ 365607098 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:0']                                                                                                                                                                        │
+│ 365590571 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:451']                                                                                                                                                                      │
+│ 365598941 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:0']                                                                                                                                                                        │
+│ 365607098 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:0']                                                                                                                                                                        │
+│ 365590571 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:451']                                                                                                                                                                      │
+│ 365598941 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:0']                                                                                                                                                                        │
+│ 365607098 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:0']                                                                                                                                                                        │
+│ 365590571 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:451']                                                                                                                                                                      │
+│ 365598941 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:0']                                                                                                                                                                        │
+│ 365597289 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:807']                                                                                                                                                                      │
+│ 365599840 │ ['./build_normal_debug/./src/Common/Dwarf.cpp:1118']                                                                                                                                                                     │
+│ 531058145 │ ['./build_normal_debug/./src/Functions/addressToLineWithInlines.cpp:152']                                                                                                                                                │
+│ 531055181 │ ['./src/Functions/addressToLineWithInlines.cpp:98','./build_normal_debug/./src/Functions/addressToLineWithInlines.cpp:176:DB::(anonymous namespace)::FunctionAddressToLineWithInlines::implCached(unsigned long) const'] │
+│ 422333613 │ ['./build_normal_debug/./src/Functions/IFunctionAdaptors.h:21']                                                                                                                                                          │
+│ 586866022 │ ['./build_normal_debug/./src/Functions/IFunction.cpp:216']                                                                                                                                                               │
+│ 586869053 │ ['./build_normal_debug/./src/Functions/IFunction.cpp:264']                                                                                                                                                               │
+│ 586873237 │ ['./build_normal_debug/./src/Functions/IFunction.cpp:334']                                                                                                                                                               │
+│ 597901620 │ ['./build_normal_debug/./src/Interpreters/ExpressionActions.cpp:601']                                                                                                                                                    │
+│ 597898534 │ ['./build_normal_debug/./src/Interpreters/ExpressionActions.cpp:718']                                                                                                                                                    │
+│ 630442912 │ ['./build_normal_debug/./src/Processors/Transforms/ExpressionTransform.cpp:23']                                                                                                                                          │
+│ 546354050 │ ['./build_normal_debug/./src/Processors/ISimpleTransform.h:38']                                                                                                                                                          │
+│ 626026993 │ ['./build_normal_debug/./src/Processors/ISimpleTransform.cpp:89']                                                                                                                                                        │
+│ 626294022 │ ['./build_normal_debug/./src/Processors/Executors/ExecutionThreadContext.cpp:45']                                                                                                                                        │
+│ 626293730 │ ['./build_normal_debug/./src/Processors/Executors/ExecutionThreadContext.cpp:63']                                                                                                                                        │
+│ 626169525 │ ['./build_normal_debug/./src/Processors/Executors/PipelineExecutor.cpp:213']                                                                                                                                             │
+│ 626170308 │ ['./build_normal_debug/./src/Processors/Executors/PipelineExecutor.cpp:178']                                                                                                                                             │
+│ 626166348 │ ['./build_normal_debug/./src/Processors/Executors/PipelineExecutor.cpp:329']                                                                                                                                             │
+│ 626163461 │ ['./build_normal_debug/./src/Processors/Executors/PipelineExecutor.cpp:84']                                                                                                                                              │
+│ 626323536 │ ['./build_normal_debug/./src/Processors/Executors/PullingAsyncPipelineExecutor.cpp:85']                                                                                                                                  │
+│ 626323277 │ ['./build_normal_debug/./src/Processors/Executors/PullingAsyncPipelineExecutor.cpp:112']                                                                                                                                 │
+│ 626323133 │ ['./build_normal_debug/./contrib/libcxx/include/type_traits:3682']                                                                                                                                                       │
+│ 626323041 │ ['./build_normal_debug/./contrib/libcxx/include/tuple:1415']                                                                                                                                                             │
+└───────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+```
+
+
 ## addressToSymbol {#addresstosymbol}
 
 Converts virtual memory address inside ClickHouse server process to the symbol from ClickHouse object files.
@@ -125,14 +225,12 @@ addressToSymbol(address_of_binary_instruction)
 
 **Arguments**
 
--   `address_of_binary_instruction` ([UInt64](../../sql-reference/data-types/int-uint.md)) — Address of instruction in a running process.
+- `address_of_binary_instruction` ([UInt64](../data-types/int-uint.md)) — Address of instruction in a running process.
 
 **Returned value**
 
--   Symbol from ClickHouse object files.
--   Empty string, if the address is not valid.
-
-Type: [String](../../sql-reference/data-types/string.md).
+- Symbol from ClickHouse object files. [String](../data-types/string.md).
+- Empty string, if the address is not valid. [String](../data-types/string.md).
 
 **Example**
 
@@ -184,7 +282,7 @@ LIMIT 1
 \G
 ```
 
-The [arrayMap](../../sql-reference/functions/array-functions.md#array-map) function allows to process each individual element of the `trace` array by the `addressToSymbols` function. The result of this processing you see in the `trace_symbols` column of output.
+The [arrayMap](/sql-reference/functions/array-functions#arraymapfunc-arr1-)) function allows to process each individual element of the `trace` array by the `addressToSymbols` function. The result of this processing you see in the `trace_symbols` column of output.
 
 ``` text
 Row 1:
@@ -222,14 +320,11 @@ demangle(symbol)
 
 **Arguments**
 
--   `symbol` ([String](../../sql-reference/data-types/string.md)) — Symbol from an object file.
+- `symbol` ([String](../data-types/string.md)) — Symbol from an object file.
 
 **Returned value**
 
--   Name of the C++ function.
--   Empty string if a symbol is not valid.
-
-Type: [String](../../sql-reference/data-types/string.md).
+- Name of the C++ function, or an empty string if the symbol is not valid. [String](../data-types/string.md).
 
 **Example**
 
@@ -281,7 +376,7 @@ LIMIT 1
 \G
 ```
 
-The [arrayMap](../../sql-reference/functions/array-functions.md#array-map) function allows to process each individual element of the `trace` array by the `demangle` function. The result of this processing you see in the `trace_functions` column of output.
+The [arrayMap](/sql-reference/functions/array-functions#arraymapfunc-arr1-)) function allows to process each individual element of the `trace` array by the `demangle` function. The result of this processing you see in the `trace_functions` column of output.
 
 ``` text
 Row 1:
@@ -308,7 +403,7 @@ clone
 ```
 ## tid {#tid}
 
-Returns id of the thread, in which current [Block](https://clickhouse.com/docs/en/development/architecture/#block) is processed.
+Returns id of the thread, in which current [Block](/development/architecture/#block) is processed.
 
 **Syntax**
 
@@ -318,7 +413,7 @@ tid()
 
 **Returned value**
 
--   Current thread id. [Uint64](../../sql-reference/data-types/int-uint.md#uint-ranges).
+- Current thread id. [Uint64](/sql-reference/data-types/int-uint#integer-ranges).
 
 **Example**
 
@@ -338,7 +433,7 @@ Result:
 
 ## logTrace {#logtrace}
 
-Emits trace log message to server log for each [Block](https://clickhouse.com/docs/en/development/architecture/#block).
+Emits trace log message to server log for each [Block](/development/architecture/#block).
 
 **Syntax**
 
@@ -348,11 +443,11 @@ logTrace('message')
 
 **Arguments**
 
--   `message` — Message that is emitted to server log. [String](../../sql-reference/data-types/string.md#string).
+- `message` — Message that is emitted to server log. [String](../data-types/string.md#string).
 
 **Returned value**
 
--   Always returns 0.
+- Always returns 0.
 
 **Example**
 
@@ -369,4 +464,3 @@ Result:
 │                            0 │
 └──────────────────────────────┘
 ```
-

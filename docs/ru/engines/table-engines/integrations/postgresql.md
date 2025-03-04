@@ -1,6 +1,7 @@
 ---
-toc_priority: 11
-toc_title: PostgreSQL
+slug: /ru/engines/table-engines/integrations/postgresql
+sidebar_position: 11
+sidebar_label: PostgreSQL
 ---
 
 #PostgreSQL {#postgresql}
@@ -18,13 +19,13 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
 ) ENGINE = PostgreSQL('host:port', 'database', 'table', 'user', 'password'[, `schema`]);
 ```
 
-Смотрите подробное описание запроса [CREATE TABLE](../../../sql-reference/statements/create/table.md#create-table-query).
+Смотрите подробное описание запроса [CREATE TABLE](/sql-reference/statements/create/table).
 
 Структура таблицы может отличаться от структуры исходной таблицы PostgreSQL:
 
 -   Имена столбцов должны быть такими же, как в исходной таблице PostgreSQL, но можно использовать только некоторые из этих столбцов и в любом порядке.
 -   Типы столбцов могут отличаться от типов в исходной таблице PostgreSQL. ClickHouse пытается [привести](../../../engines/database-engines/postgresql.md#data_types-support) значения к типам данных ClickHouse.
--   Настройка [external_table_functions_use_nulls](../../../operations/settings/settings.md#external-table-functions-use-nulls) определяет как обрабатывать Nullable столбцы. Значение по умолчанию: 1. Если значение 0, то табличная функция не делает Nullable столбцы, а вместо NULL выставляет значения по умолчанию для скалярного типа. Это также применимо для значений NULL внутри массивов.
+-   Настройка [external_table_functions_use_nulls](/operations/settings/settings#external_table_functions_use_nulls) определяет как обрабатывать Nullable столбцы. Значение по умолчанию: 1. Если значение 0, то табличная функция не делает Nullable столбцы, а вместо NULL выставляет значения по умолчанию для скалярного типа. Это также применимо для значений NULL внутри массивов.
 
 **Параметры движка**
 
@@ -47,8 +48,9 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
 
 PostgreSQL массивы конвертируются в массивы ClickHouse.
 
-!!! info "Внимание"
-    Будьте внимательны, в PostgreSQL массивы, созданные как `type_name[]`, являются многомерными и могут содержать в себе разное количество измерений в разных строках одной таблицы. Внутри ClickHouse допустимы только многомерные массивы с одинаковым кол-вом измерений во всех строках таблицы.
+:::info Внимание
+Будьте внимательны, в PostgreSQL массивы, созданные как `type_name[]`, являются многомерными и могут содержать в себе разное количество измерений в разных строках одной таблицы. Внутри ClickHouse допустимы только многомерные массивы с одинаковым кол-вом измерений во всех строках таблицы.
+:::
 
 Поддерживает несколько реплик, которые должны быть перечислены через `|`. Например:
 
@@ -147,5 +149,3 @@ CREATE TABLE pg_table_schema_with_dots (a UInt32)
 
 -   [Табличная функция `postgresql`](../../../sql-reference/table-functions/postgresql.md)
 -   [Использование PostgreSQL в качестве источника для внешнего словаря](../../../sql-reference/dictionaries/external-dictionaries/external-dicts-dict-sources.md#dicts-external_dicts_dict_sources-postgresql)
-
-[Оригинальная статья](https://clickhouse.com/docs/ru/engines/table-engines/integrations/postgresql/) <!--hide-->

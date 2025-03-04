@@ -1,20 +1,22 @@
 ---
-toc_priority: 62
-toc_title: Поддержка OpenTelemetry
+slug: /ru/operations/opentelemetry
+sidebar_position: 62
+sidebar_label: Поддержка OpenTelemetry
 ---
 
-# [экспериментально] Поддержка OpenTelemetry
+# Поддержка OpenTelemetry
 
 ClickHouse поддерживает [OpenTelemetry](https://opentelemetry.io/) — открытый стандарт для сбора трассировок и метрик из распределенного приложения.
 
-!!! warning "Предупреждение"
+:::danger Предупреждение
 Поддержка стандарта экспериментальная и будет со временем меняться.
+:::
 
 ## Обеспечение поддержки контекста трассировки в ClickHouse
 
 ClickHouse принимает контекстную информацию трассировки через HTTP заголовок `tracecontext`, как описано в [рекомендации W3C](https://www.w3.org/TR/trace-context/). Также он принимает контекстную информацию через нативный протокол, который используется для связи между серверами ClickHouse или между клиентом и сервером. Для ручного тестирования стандартный заголовок `tracecontext`, содержащий контекст трассировки, может быть передан в `clickhouse-client` через флаги: `--opentelemetry-traceparent` и `--opentelemetry-tracestate`.
 
-Если входящий контекст трассировки не указан, ClickHouse может начать трассировку с вероятностью, задаваемой настройкой [opentelemetry_start_trace_probability](../operations/settings/settings.md#opentelemetry-start-trace-probability).
+Если входящий контекст трассировки не указан, ClickHouse может начать трассировку с вероятностью, задаваемой настройкой [opentelemetry_start_trace_probability](/operations/settings/settings#opentelemetry_start_trace_probability).
 
 ## Распространение контекста трассировки
 
@@ -33,4 +35,3 @@ ClickHouse создает `trace spans` для каждого запроса и 
 Таблица должна быть включена в конфигурации сервера, смотрите элемент `opentelemetry_span_log` в файле конфигурации `config.xml`. По умолчанию таблица включена всегда.
 
 Теги или атрибуты сохраняются в виде двух параллельных массивов, содержащих ключи и значения. Для работы с ними используйте [ARRAY JOIN](../sql-reference/statements/select/array-join.md).
-

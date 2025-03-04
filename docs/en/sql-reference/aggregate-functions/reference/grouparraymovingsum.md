@@ -1,8 +1,11 @@
 ---
-toc_priority: 113
+slug: /sql-reference/aggregate-functions/reference/grouparraymovingsum
+sidebar_position: 144
+title: "groupArrayMovingSum"
+description: "Calculates the moving sum of input values."
 ---
 
-# groupArrayMovingSum {#agg_function-grouparraymovingsum}
+# groupArrayMovingSum
 
 Calculates the moving sum of input values.
 
@@ -15,12 +18,12 @@ The function can take the window size as a parameter. If left unspecified, the f
 
 **Arguments**
 
--   `numbers_for_summing` — [Expression](../../../sql-reference/syntax.md#syntax-expressions) resulting in a numeric data type value.
--   `window_size` — Size of the calculation window.
+- `numbers_for_summing` — [Expression](/sql-reference/syntax#expressions) resulting in a numeric data type value.
+- `window_size` — Size of the calculation window.
 
 **Returned values**
 
--   Array of the same size and type as the input data.
+- Array of the same size and type as the input data.
 
 **Example**
 

@@ -1,6 +1,7 @@
 #include <IO/WriteBufferFromOStream.h>
-#include <Common/MemoryTracker.h>
+#include <Common/logger_useful.h>
 
+#include <ostream>
 
 namespace DB
 {
@@ -19,8 +20,7 @@ void WriteBufferFromOStream::nextImpl()
     ostr->flush();
 
     if (!ostr->good())
-        throw Exception("Cannot write to ostream at offset " + std::to_string(count()),
-            ErrorCodes::CANNOT_WRITE_TO_OSTREAM);
+        throw Exception(ErrorCodes::CANNOT_WRITE_TO_OSTREAM, "Cannot write to ostream at offset {}", count());
 }
 
 WriteBufferFromOStream::WriteBufferFromOStream(
@@ -38,13 +38,6 @@ WriteBufferFromOStream::WriteBufferFromOStream(
     size_t alignment)
     : BufferWithOwnMemory<WriteBuffer>(size, existing_memory, alignment), ostr(&ostr_)
 {
-}
-
-WriteBufferFromOStream::~WriteBufferFromOStream()
-{
-    /// FIXME move final flush into the caller
-    MemoryTracker::LockExceptionInThread lock(VariableContext::Global);
-    next();
 }
 
 }

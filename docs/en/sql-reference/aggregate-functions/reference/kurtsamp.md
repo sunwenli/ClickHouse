@@ -1,8 +1,11 @@
 ---
-toc_priority: 154
+slug: /sql-reference/aggregate-functions/reference/kurtsamp
+sidebar_position: 158
+title: "kurtSamp"
+description: "Computes the sample kurtosis of a sequence."
 ---
 
-# kurtSamp {#kurtsamp}
+# kurtSamp
 
 Computes the [sample kurtosis](https://en.wikipedia.org/wiki/Kurtosis) of a sequence.
 
@@ -14,7 +17,7 @@ kurtSamp(expr)
 
 **Arguments**
 
-`expr` — [Expression](../../../sql-reference/syntax.md#syntax-expressions) returning a number.
+`expr` — [Expression](/sql-reference/syntax#expressions) returning a number.
 
 **Returned value**
 

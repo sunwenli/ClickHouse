@@ -1,8 +1,9 @@
 ---
+slug: /zh/sql-reference/statements/misc
 machine_translated: true
 machine_translated_rev: 72537a2d527c63c07aa5d2361a8829f3895cf2bd
-toc_priority: 41
-toc_title: "\u5176\u4ED6"
+sidebar_position: 41
+sidebar_label: "\u5176\u4ED6"
 ---
 
 # 杂项查询 {#miscellaneous-queries}
@@ -58,7 +59,7 @@ CHECK TABLE [db.]name
 如果表已损坏，则可以将未损坏的数据复制到另一个表。 要做到这一点:
 
 1.  创建一个与损坏的表结构相同的新表。 请执行查询 `CREATE TABLE <new_table_name> AS <damaged_table_name>`.
-2.  将 [max_threads](../../operations/settings/settings.md#settings-max_threads) 值设置为1，以在单个线程中处理下一个查询。 要这样做，请运行查询 `SET max_threads = 1`.
+2.  将 [max_threads](/operations/settings/settings#max_threads) 值设置为1，以在单个线程中处理下一个查询。 要这样做，请运行查询 `SET max_threads = 1`.
 3.  执行查询 `INSERT INTO <new_table_name> SELECT * FROM <damaged_table_name>`. 此请求将未损坏的数据从损坏的表复制到另一个表。 只有损坏部分之前的数据才会被复制。
 4.  重新启动 `clickhouse-client` 以重置 `max_threads` 值。
 
@@ -275,7 +276,7 @@ OPTIMIZE TABLE [db.]name [ON CLUSTER cluster] [PARTITION partition | PARTITION I
 
 该 `OPTMIZE` 查询也支持 [MaterializedView](../../engines/table-engines/special/materializedview.md) 和 [Buffer](../../engines/table-engines/special/buffer.md) 引擎。 不支持其他表引擎。
 
-当 `OPTIMIZE` 与 [ReplicatedMergeTree](../../engines/table-engines/mergetree-family/replication.md) 家族的表引擎一起使用时，ClickHouse将创建一个合并任务，并等待所有节点上的执行（如果 `replication_alter_partitions_sync` 设置已启用）。
+当 `OPTIMIZE` 与 [ReplicatedMergeTree](../../engines/table-engines/mergetree-family/replication.md) 家族的表引擎一起使用时，ClickHouse将创建一个合并任务，并等待所有节点上的执行（如果 `alter_sync` 设置已启用）。
 
 -   如果 `OPTIMIZE` 出于任何原因不执行合并，它不通知客户端。 要启用通知，请使用 [optimize_throw_if_noop](../../operations/settings/settings.md#setting-optimize_throw_if_noop) 设置。
 -   如果您指定 `PARTITION`，仅优化指定的分区。 [如何设置分区表达式](alter.md#alter-how-to-specify-part-expr).
@@ -375,5 +376,3 @@ USE db
 用于设置会话的当前数据库。
 当前数据库用于搜索表，如果数据库没有在查询中明确定义与表名之前的点。
 使用HTTP协议时无法进行此查询，因为没有会话的概念。
-
-[原始文章](https://clickhouse.com/docs/en/query_language/misc/) <!--hide-->

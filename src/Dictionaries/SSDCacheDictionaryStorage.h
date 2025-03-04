@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(__linux__) || defined(__FreeBSD__)
+#if defined(OS_LINUX) || defined(OS_FREEBSD)
 
 #include <chrono>
 
@@ -11,17 +11,22 @@
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 
-#include <base/unaligned.h>
-#include <Common/randomSeed.h>
-#include <Common/Arena.h>
-#include <Common/ArenaWithFreeLists.h>
-#include <Common/MemorySanitizer.h>
-#include <Common/HashTable/HashMap.h>
-#include <IO/AIO.h>
-#include <IO/BufferWithOwnMemory.h>
-#include <Dictionaries/DictionaryStructure.h>
-#include <Dictionaries/ICacheDictionaryStorage.h>
-#include <Dictionaries/DictionaryHelpers.h>
+#    include <base/MemorySanitizer.h>
+#    include <Dictionaries/DictionaryHelpers.h>
+#    include <Dictionaries/DictionaryStructure.h>
+#    include <Dictionaries/ICacheDictionaryStorage.h>
+#    include <IO/AIO.h>
+#    include <IO/BufferWithOwnMemory.h>
+#    include <base/defines.h>
+#    include <base/sort.h>
+#    include <base/unaligned.h>
+#    include <Common/Arena.h>
+#    include <Common/ArenaUtils.h>
+#    include <Common/ArenaWithFreeLists.h>
+#    include <Common/CurrentMetrics.h>
+#    include <Common/HashTable/HashMap.h>
+#    include <Common/randomSeed.h>
+
 
 namespace ProfileEvents
 {
@@ -30,6 +35,8 @@ namespace ProfileEvents
     extern const Event AIOWriteBytes;
     extern const Event AIORead;
     extern const Event AIOReadBytes;
+    extern const Event FileSync;
+    extern const Event FileSyncElapsedMicroseconds;
 }
 
 namespace DB
@@ -127,7 +134,7 @@ public:
 
     /// Reset block with new block_data
     /// block_data must be filled with zeroes if it is new block
-    inline void reset(char * new_block_data)
+    void reset(char * new_block_data)
     {
         block_data = new_block_data;
         current_block_offset = block_header_size;
@@ -135,13 +142,13 @@ public:
     }
 
     /// Check if it is enough place to write key in block
-    inline bool enoughtPlaceToWriteKey(const SSDCacheSimpleKey & cache_key) const
+    bool enoughtPlaceToWriteKey(const SSDCacheSimpleKey & cache_key) const
     {
         return (current_block_offset + (sizeof(cache_key.key) + sizeof(cache_key.size) + cache_key.size)) <= block_size;
     }
 
     /// Check if it is enough place to write key in block
-    inline bool enoughtPlaceToWriteKey(const SSDCacheComplexKey & cache_key) const
+    bool enoughtPlaceToWriteKey(const SSDCacheComplexKey & cache_key) const
     {
         const StringRef & key = cache_key.key;
         size_t complex_key_size = sizeof(key.size) + key.size;
@@ -152,7 +159,7 @@ public:
     /// Write key and returns offset in ssd cache block where data is written
     /// It is client responsibility to check if there is enough place in block to write key
     /// Returns true if key was written and false if there was not enough place to write key
-    inline bool writeKey(const SSDCacheSimpleKey & cache_key, size_t & offset_in_block)
+    bool writeKey(const SSDCacheSimpleKey & cache_key, size_t & offset_in_block)
     {
         assert(cache_key.size > 0);
 
@@ -181,7 +188,7 @@ public:
         return true;
     }
 
-    inline bool writeKey(const SSDCacheComplexKey & cache_key, size_t & offset_in_block)
+    bool writeKey(const SSDCacheComplexKey & cache_key, size_t & offset_in_block)
     {
         assert(cache_key.size > 0);
 
@@ -216,20 +223,20 @@ public:
         return true;
     }
 
-    inline size_t getKeysSize() const { return keys_size; }
+    size_t getKeysSize() const { return keys_size; }
 
     /// Write keys size into block header
-    inline void writeKeysSize()
+    void writeKeysSize()
     {
         char * keys_size_offset_data = block_data + block_header_check_sum_size;
         std::memcpy(keys_size_offset_data, &keys_size, sizeof(size_t));
     }
 
     /// Get check sum from block header
-    inline size_t getCheckSum() const { return unalignedLoad<size_t>(block_data); }
+    size_t getCheckSum() const { return unalignedLoad<size_t>(block_data); }
 
     /// Calculate check sum in block
-    inline size_t calculateCheckSum() const
+    size_t calculateCheckSum() const
     {
         size_t calculated_check_sum = static_cast<size_t>(CityHash_v1_0_2::CityHash64(block_data + block_header_check_sum_size, block_size - block_header_check_sum_size));
 
@@ -237,7 +244,7 @@ public:
     }
 
     /// Check if check sum from block header matched calculated check sum in block
-    inline bool checkCheckSum() const
+    bool checkCheckSum() const
     {
         size_t calculated_check_sum = calculateCheckSum();
         size_t check_sum = getCheckSum();
@@ -246,16 +253,16 @@ public:
     }
 
     /// Write check sum in block header
-    inline void writeCheckSum()
+    void writeCheckSum()
     {
         size_t check_sum = static_cast<size_t>(CityHash_v1_0_2::CityHash64(block_data + block_header_check_sum_size, block_size - block_header_check_sum_size));
         std::memcpy(block_data, &check_sum, sizeof(size_t));
     }
 
-    inline size_t getBlockSize() const { return block_size; }
+    size_t getBlockSize() const { return block_size; }
 
     /// Returns block data
-    inline char * getBlockData() const { return block_data; }
+    char * getBlockData() const { return block_data; }
 
     /// Read keys that were serialized in block
     /// It is client responsibility to ensure that simple or complex keys were written in block
@@ -398,16 +405,16 @@ public:
         current_write_block.writeCheckSum();
     }
 
-    inline char * getPlace(SSDCacheIndex index) const
+    char * getPlace(SSDCacheIndex index) const
     {
         return buffer.m_data + index.block_index * block_size + index.offset_in_block;
     }
 
-    inline size_t getCurrentBlockIndex() const { return current_block_index; }
+    size_t getCurrentBlockIndex() const { return current_block_index; }
 
-    inline const char * getData() const { return buffer.m_data; }
+    const char * getData() const { return buffer.m_data; }
 
-    inline size_t getSizeInBytes() const { return block_size * partition_blocks_size; }
+    size_t getSizeInBytes() const { return block_size * partition_blocks_size; }
 
     void readKeys(PaddedPODArray<KeyType> & keys) const
     {
@@ -424,7 +431,7 @@ public:
         }
     }
 
-    inline void reset()
+    void reset()
     {
         current_block_index = 0;
         current_write_block.reset(buffer.m_data);
@@ -463,7 +470,7 @@ public:
         auto path = std::filesystem::path{file_path};
         auto parent_path_directory = path.parent_path();
 
-        /// If cache file is in directory that does not exists create it
+        /// If cache file is in directory that does not exist create it
         if (!std::filesystem::exists(parent_path_directory))
             if (!std::filesystem::create_directories(parent_path_directory))
                 throw Exception(ErrorCodes::CANNOT_CREATE_DIRECTORY, "Failed to create directories.");
@@ -474,7 +481,7 @@ public:
         if (file.fd == -1)
         {
             auto error_code = (errno == ENOENT) ? ErrorCodes::FILE_DOESNT_EXIST : ErrorCodes::CANNOT_OPEN_FILE;
-            throwFromErrnoWithPath("Cannot open file " + file_path, file_path, error_code);
+            ErrnoException::throwFromPath(error_code, file_path, "Cannot open file {}", file_path);
         }
 
         allocateSizeForNextPartition();
@@ -483,7 +490,8 @@ public:
     void allocateSizeForNextPartition()
     {
         if (preallocateDiskSpace(file.fd, current_blocks_size * block_size, block_size * file_blocks_size) < 0)
-            throwFromErrnoWithPath("Cannot preallocate space for the file " + file_path, file_path, ErrorCodes::CANNOT_ALLOCATE_MEMORY);
+            ErrnoException::throwFromPath(
+                ErrorCodes::CANNOT_ALLOCATE_MEMORY, file_path, "Cannot preallocate space for the file {}", file_path);
 
         current_blocks_size += file_blocks_size;
     }
@@ -498,7 +506,7 @@ public:
         iocb write_request{};
         iocb * write_request_ptr{&write_request};
 
-        #if defined(__FreeBSD__)
+        #if defined(OS_FREEBSD)
         write_request.aio.aio_lio_opcode = LIO_WRITE;
         write_request.aio.aio_fildes = file.fd;
         write_request.aio.aio_buf = reinterpret_cast<volatile void *>(const_cast<char *>(buffer));
@@ -517,8 +525,6 @@ public:
             if (errno != EINTR)
                 throw Exception(ErrorCodes::CANNOT_IO_SUBMIT, "Cannot submit request for asynchronous IO on file {}", file_path);
         }
-
-        // CurrentMetrics::Increment metric_increment_write{CurrentMetrics::Write};
 
         io_event event;
 
@@ -540,10 +546,19 @@ public:
             throw Exception(ErrorCodes::AIO_WRITE_ERROR,
                 "Not all data was written for asynchronous IO on file {}. returned: {}",
                 file_path,
-                std::to_string(bytes_written));
+                bytes_written);
 
+        ProfileEvents::increment(ProfileEvents::FileSync);
+
+        Stopwatch watch;
+        #if defined(OS_DARWIN)
         if (::fsync(file.fd) < 0)
-            throwFromErrnoWithPath("Cannot fsync " + file_path, file_path, ErrorCodes::CANNOT_FSYNC);
+            ErrnoException::throwFromPath(ErrorCodes::CANNOT_FSYNC, file_path, "Cannot fsync {}", file_path);
+#    else
+        if (::fdatasync(file.fd) < 0)
+            ErrnoException::throwFromPath(ErrorCodes::CANNOT_FSYNC, file_path, "Cannot fdatasync {}", file_path);
+#    endif
+        ProfileEvents::increment(ProfileEvents::FileSyncElapsedMicroseconds, watch.elapsedMicroseconds());
 
         current_block_index += buffer_size_in_blocks;
 
@@ -562,7 +577,7 @@ public:
         iocb request{};
         iocb * request_ptr = &request;
 
-        #if defined(__FreeBSD__)
+        #if defined(OS_FREEBSD)
         request.aio.aio_lio_opcode = LIO_READ;
         request.aio.aio_fildes = file.fd;
         request.aio.aio_buf = reinterpret_cast<volatile void *>(reinterpret_cast<UInt64>(read_buffer_memory.data()));
@@ -584,13 +599,13 @@ public:
         while (io_submit(aio_context.ctx, 1, &request_ptr) != 1)
         {
             if (errno != EINTR)
-                throwFromErrno("io_submit: Failed to submit a request for asynchronous IO", ErrorCodes::CANNOT_IO_SUBMIT);
+                throw ErrnoException(ErrorCodes::CANNOT_IO_SUBMIT, "io_submit: Failed to submit a request for asynchronous IO");
         }
 
         while (io_getevents(aio_context.ctx, 1, 1, &event, nullptr) != 1)
         {
             if (errno != EINTR)
-                throwFromErrno("io_getevents: Failed to get an event for asynchronous IO", ErrorCodes::CANNOT_IO_GETEVENTS);
+                throw ErrnoException(ErrorCodes::CANNOT_IO_GETEVENTS, "io_getevents: Failed to get an event for asynchronous IO");
         }
 
         auto read_bytes = eventResult(event);
@@ -642,7 +657,7 @@ public:
 
             char * buffer_place = read_buffer.data() + block_size * (block_to_fetch_index % read_from_file_buffer_blocks_size);
 
-            #if defined(__FreeBSD__)
+            #if defined(OS_FREEBSD)
             request.aio.aio_lio_opcode = LIO_READ;
             request.aio.aio_fildes = file.fd;
             request.aio.aio_buf = reinterpret_cast<volatile void *>(reinterpret_cast<UInt64>(buffer_place));
@@ -662,7 +677,7 @@ public:
             pointers.push_back(&requests.back());
         }
 
-        AIOContext aio_context(read_from_file_buffer_blocks_size);
+        AIOContext aio_context(static_cast<unsigned>(read_from_file_buffer_blocks_size));
 
         PaddedPODArray<bool> processed(requests.size(), false);
         PaddedPODArray<io_event> events;
@@ -678,7 +693,7 @@ public:
             while (to_pop < to_push && (popped = io_getevents(aio_context.ctx, to_push - to_pop, to_push - to_pop, &events[to_pop], nullptr)) <= 0)
             {
                 if (errno != EINTR)
-                    throwFromErrno("io_getevents: Failed to get an event for asynchronous IO", ErrorCodes::CANNOT_IO_GETEVENTS);
+                    throw ErrnoException(ErrorCodes::CANNOT_IO_GETEVENTS, "io_getevents: Failed to get an event for asynchronous IO");
             }
 
             for (size_t i = to_pop; i < to_pop + popped; ++i)
@@ -706,14 +721,13 @@ public:
                 if (!block.checkCheckSum())
                 {
                     std::string calculated_check_sum = std::to_string(block.calculateCheckSum());
-                    std::string check_sum = std::to_string(block.getCheckSum());
+                    std::string expected_check_sum = std::to_string(block.getCheckSum());
                     throw Exception(ErrorCodes::CORRUPTED_DATA,
-                        "Cache data corrupted. Checksum validation failed. Calculated {} in block {}",
-                        calculated_check_sum,
-                        check_sum);
+                        "Cache data corrupted. Checksum validation failed. Calculated {} expected in block {}, in file {}",
+                        calculated_check_sum, expected_check_sum, file_path);
                 }
 
-                std::forward<FetchBlockFunc>(func)(blocks_to_fetch[block_to_fetch_index], block.getBlockData());
+                func(blocks_to_fetch[block_to_fetch_index], block.getBlockData());
 
                 processed[block_to_fetch_index] = true;
             }
@@ -722,22 +736,23 @@ public:
                 ++to_pop;
 
             /// add new io tasks
-            const int new_tasks_count = std::min(read_from_file_buffer_blocks_size - (to_push - to_pop), requests.size() - to_push);
+            const int new_tasks_count = static_cast<int>(std::min(
+                read_from_file_buffer_blocks_size - (to_push - to_pop), requests.size() - to_push));
 
             int pushed = 0;
             while (new_tasks_count > 0 && (pushed = io_submit(aio_context.ctx, new_tasks_count, &pointers[to_push])) <= 0)
             {
                 if (errno != EINTR)
-                    throwFromErrno("io_submit: Failed to submit a request for asynchronous IO", ErrorCodes::CANNOT_IO_SUBMIT);
+                    throw ErrnoException(ErrorCodes::CANNOT_IO_SUBMIT, "io_submit: Failed to submit a request for asynchronous IO");
             }
 
             to_push += pushed;
         }
     }
 
-    inline size_t getCurrentBlockIndex() const { return current_block_index; }
+    size_t getCurrentBlockIndex() const { return current_block_index; }
 
-    inline void reset()
+    void reset()
     {
         current_block_index = 0;
     }
@@ -747,14 +762,15 @@ private:
 
         FileDescriptor() = default;
 
-        FileDescriptor(FileDescriptor && rhs) : fd(rhs.fd) { rhs.fd = -1; }
+        FileDescriptor(FileDescriptor && rhs) noexcept : fd(rhs.fd) { rhs.fd = -1; }
 
-        FileDescriptor & operator=(FileDescriptor && rhs)
+        FileDescriptor & operator=(FileDescriptor && rhs) noexcept
         {
             if (this == &rhs)
                 return *this;
 
-            close(fd);
+            [[maybe_unused]] int err = ::close(fd);
+            chassert(!err || errno == EINTR);
 
             fd = rhs.fd;
             rhs.fd = -1;
@@ -763,26 +779,29 @@ private:
         ~FileDescriptor()
         {
             if (fd != -1)
-                close(fd);
+            {
+                [[maybe_unused]] int err = close(fd);
+                chassert(!err || errno == EINTR);
+            }
         }
 
         int fd = -1;
     };
 
-    inline static int preallocateDiskSpace(int fd, size_t offset, size_t len)
+    static int preallocateDiskSpace(int fd, size_t offset, size_t len)
     {
-        #if defined(__FreeBSD__)
+        #if defined(OS_FREEBSD)
             return posix_fallocate(fd, offset, len);
         #else
             return fallocate(fd, 0, offset, len);
         #endif
     }
 
-    inline static char * getRequestBuffer(const iocb & request)
+    static char * getRequestBuffer(const iocb & request)
     {
         char * result = nullptr;
 
-        #if defined(__FreeBSD__)
+        #if defined(OS_FREEBSD)
             result = reinterpret_cast<char *>(reinterpret_cast<UInt64>(request.aio.aio_buf));
         #else
             result = reinterpret_cast<char *>(request.aio_buf);
@@ -791,11 +810,11 @@ private:
         return result;
     }
 
-    inline static ssize_t eventResult(io_event & event)
+    static ssize_t eventResult(io_event & event)
     {
         ssize_t  bytes_written;
 
-        #if defined(__FreeBSD__)
+        #if defined(OS_FREEBSD)
             bytes_written = aio_return(reinterpret_cast<struct aiocb *>(event.udata));
         #else
             bytes_written = event.res;
@@ -841,18 +860,19 @@ public:
     {
         if (dictionary_key_type == DictionaryKeyType::Simple)
             return "SSDCache";
-        else
-            return "SSDComplexKeyCache";
+
+        return "SSDComplexKeyCache";
     }
 
     bool supportsSimpleKeys() const override { return dictionary_key_type == DictionaryKeyType::Simple; }
 
     SimpleKeysStorageFetchResult fetchColumnsForKeys(
         const PaddedPODArray<UInt64> & keys,
-        const DictionaryStorageFetchRequest & fetch_request) override
+        const DictionaryStorageFetchRequest & fetch_request,
+        IColumn::Filter * const default_mask) override
     {
         if constexpr (dictionary_key_type == DictionaryKeyType::Simple)
-            return fetchColumnsForKeysImpl<SimpleKeysStorageFetchResult>(keys, fetch_request);
+            return fetchColumnsForKeysImpl<SimpleKeysStorageFetchResult>(keys, fetch_request, default_mask);
         else
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Method insertColumnsForKeys is not supported for complex key storage");
     }
@@ -885,10 +905,11 @@ public:
 
     ComplexKeysStorageFetchResult fetchColumnsForKeys(
         const PaddedPODArray<StringRef> & keys,
-        const DictionaryStorageFetchRequest & fetch_request) override
+        const DictionaryStorageFetchRequest & fetch_request,
+        IColumn::Filter * const default_mask) override
     {
         if constexpr (dictionary_key_type == DictionaryKeyType::Complex)
-            return fetchColumnsForKeysImpl<ComplexKeysStorageFetchResult>(keys, fetch_request);
+            return fetchColumnsForKeysImpl<ComplexKeysStorageFetchResult>(keys, fetch_request, default_mask);
         else
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Method fetchColumnsForKeys is not supported for simple key storage");
     }
@@ -964,9 +985,9 @@ private:
         size_t in_memory_partition_index;
         CellState state;
 
-        inline bool isInMemory() const { return state == in_memory; }
-        inline bool isOnDisk() const { return state == on_disk; }
-        inline bool isDefaultValue() const { return state == default_value; }
+        bool isInMemory() const { return state == in_memory; }
+        bool isOnDisk() const { return state == on_disk; }
+        bool isDefaultValue() const { return state == default_value; }
     };
 
     struct KeyToBlockOffset
@@ -982,7 +1003,8 @@ private:
     template <typename Result>
     Result fetchColumnsForKeysImpl(
         const PaddedPODArray<KeyType> & keys,
-        const DictionaryStorageFetchRequest & fetch_request) const
+        const DictionaryStorageFetchRequest & fetch_request,
+        IColumn::Filter * const default_mask) const
     {
         Result result;
 
@@ -992,6 +1014,7 @@ private:
         const time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 
         size_t fetched_columns_index = 0;
+        size_t fetched_columns_index_without_default = 0;
 
         using BlockIndexToKeysMap = absl::flat_hash_map<size_t, PaddedPODArray<KeyToBlockOffset>, DefaultHash<size_t>>;
         BlockIndexToKeysMap block_to_keys_map;
@@ -1041,8 +1064,11 @@ private:
             {
                 case Cell::in_memory:
                 {
-                    result.key_index_to_state[key_index] = {key_state, fetched_columns_index};
+                    result.key_index_to_state[key_index] = {key_state,
+                        default_mask ? fetched_columns_index_without_default : fetched_columns_index};
+
                     ++fetched_columns_index;
+                    ++fetched_columns_index_without_default;
 
                     const auto & partition = memory_buffer_partitions[cell.in_memory_partition_index];
                     char * serialized_columns_place = partition.getPlace(cell.index);
@@ -1069,21 +1095,24 @@ private:
                 }
                 case Cell::default_value:
                 {
-                    result.key_index_to_state[key_index] = {key_state, fetched_columns_index};
+                    result.key_index_to_state[key_index] = {key_state,
+                        default_mask ? fetched_columns_index_without_default : fetched_columns_index};
                     result.key_index_to_state[key_index].setDefault();
                     ++fetched_columns_index;
                     ++result.default_keys_size;
 
-                    insertDefaultValuesIntoColumns(result.fetched_columns, fetch_request, key_index);
+                    if (!default_mask)
+                        insertDefaultValuesIntoColumns(result.fetched_columns, fetch_request, key_index);
                     break;
                 }
             }
         }
 
         /// Sort blocks by offset before start async io requests
-        std::sort(blocks_to_request.begin(), blocks_to_request.end());
+        ::sort(blocks_to_request.begin(), blocks_to_request.end());
 
-        file_buffer.fetchBlocks(configuration.read_buffer_blocks_size, blocks_to_request, [&](size_t block_index, char * block_data)
+        file_buffer.fetchBlocks(configuration.read_buffer_blocks_size, blocks_to_request,
+            [&](size_t block_index, char * block_data)
         {
             auto & keys_in_block = block_to_keys_map[block_index];
 
@@ -1092,9 +1121,11 @@ private:
                 char * key_data = block_data + key_in_block.offset_in_block;
                 deserializeAndInsertIntoColumns(result.fetched_columns, fetch_request, key_data);
 
-                result.key_index_to_state[key_in_block.key_index].setFetchedColumnIndex(fetched_columns_index);
+                result.key_index_to_state[key_in_block.key_index].setFetchedColumnIndex(
+                    default_mask ? fetched_columns_index_without_default : fetched_columns_index);
 
                 ++fetched_columns_index;
+                ++fetched_columns_index_without_default;
             }
         });
 
@@ -1138,10 +1169,7 @@ private:
             if constexpr (dictionary_key_type == DictionaryKeyType::Complex)
             {
                 /// Copy complex key into arena and put in cache
-                size_t key_size = key.size;
-                char * place_for_key = complex_key_arena.alloc(key_size);
-                memcpy(reinterpret_cast<void *>(place_for_key), reinterpret_cast<const void *>(key.data), key_size);
-                KeyType updated_key{place_for_key, key_size};
+                KeyType updated_key = copyStringInArena(complex_key_arena, key);
                 ssd_cache_key.key = updated_key;
             }
 
@@ -1216,6 +1244,7 @@ private:
 
         SSDCacheIndex cache_index {0, 0};
 
+        /// NOLINTBEGIN(readability-else-after-return)
         while (true)
         {
             bool started_reusing_old_partitions = memory_buffer_partitions.size() == configuration.max_partitions_count;
@@ -1336,9 +1365,10 @@ private:
                 }
             }
         }
+        /// NOLINTEND(readability-else-after-return)
     }
 
-    inline void setCellDeadline(Cell & cell, TimePoint now)
+    void setCellDeadline(Cell & cell, TimePoint now)
     {
         if (configuration.lifetime.min_sec == 0 && configuration.lifetime.max_sec == 0)
         {
@@ -1355,7 +1385,7 @@ private:
         cell.deadline = std::chrono::system_clock::to_time_t(deadline);
     }
 
-    inline void eraseKeyFromIndex(KeyType key)
+    void eraseKeyFromIndex(KeyType key)
     {
         auto it = index.find(key);
 

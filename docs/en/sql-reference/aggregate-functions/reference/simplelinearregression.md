@@ -1,8 +1,11 @@
 ---
-toc_priority: 220
+slug: /sql-reference/aggregate-functions/reference/simplelinearregression
+sidebar_position: 183
+title: "simpleLinearRegression"
+description: "Performs simple (unidimensional) linear regression."
 ---
 
-# simpleLinearRegression {#simplelinearregression}
+# simpleLinearRegression
 
 Performs simple (unidimensional) linear regression.
 
@@ -12,12 +15,12 @@ simpleLinearRegression(x, y)
 
 Parameters:
 
--   `x` — Column with dependent variable values.
--   `y` — Column with explanatory variable values.
+- `x` — Column with explanatory variable values.
+- `y` — Column with dependent variable values.
 
 Returned values:
 
-Constants `(a, b)` of the resulting line `y = a*x + b`.
+Constants `(k, b)` of the resulting line `y = k*x + b`.
 
 **Examples**
 

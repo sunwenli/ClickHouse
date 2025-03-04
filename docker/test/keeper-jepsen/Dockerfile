@@ -1,5 +1,7 @@
+# rebuild in #33610
 # docker build -t clickhouse/keeper-jepsen-test .
-FROM clickhouse/test-base
+ARG FROM_TAG=latest
+FROM clickhouse/test-base:$FROM_TAG
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CLOJURE_VERSION=1.10.3.814
@@ -22,7 +24,10 @@ RUN mkdir "/root/.ssh"
 RUN touch "/root/.ssh/known_hosts"
 
 # install java
-RUN apt-get update && apt-get install default-jre default-jdk libjna-java libjna-jni ssh gnuplot graphviz --yes --no-install-recommends
+RUN apt-get update && \
+    apt-get install default-jre default-jdk libjna-java libjna-jni ssh gnuplot graphviz --yes --no-install-recommends \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/debconf /tmp/*
 
 # install clojure
 RUN curl -O "https://download.clojure.org/install/linux-install-${CLOJURE_VERSION}.sh" && \

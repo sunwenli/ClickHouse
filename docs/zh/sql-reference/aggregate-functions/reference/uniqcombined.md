@@ -1,5 +1,6 @@
 ---
-toc_priority: 192
+slug: /zh/sql-reference/aggregate-functions/reference/uniqcombined
+sidebar_position: 192
 ---
 
 # uniqCombined {#agg_function-uniqcombined}
@@ -35,10 +36,11 @@ uniqCombined(HLL_precision)(x[, ...])
 
 -   确定性地提供结果（它不依赖于查询处理顺序）。
 
-!!! note "注"
-    由于它对非 `String` 类型使用32位哈希，对于基数显著大于`UINT_MAX` ，结果将有非常高的误差(误差将在几百亿不同值之后迅速提高), 因此这种情况，你应该使用 [uniqCombined64](../../../sql-reference/aggregate-functions/reference/uniqcombined64.md#agg_function-uniqcombined64)
+:::note
+由于它对非 `String` 类型使用32位哈希，对于基数显著大于`UINT_MAX` ，结果将有非常高的误差(误差将在几百亿不同值之后迅速提高), 因此这种情况，你应该使用 [uniqCombined64](../../../sql-reference/aggregate-functions/reference/uniqcombined64.md#agg_function-uniqcombined64)
+:::
 
-相比于 [uniq](../../../sql-reference/aggregate-functions/reference/uniq.md#agg_function-uniq) 函数, 该 `uniqCombined`:
+相比于 [uniq](/sql-reference/aggregate-functions/reference/uniq) 函数, 该 `uniqCombined`:
 
 -   消耗内存要少几倍。
 -   计算精度高出几倍。
@@ -46,7 +48,7 @@ uniqCombined(HLL_precision)(x[, ...])
 
 **参见**
 
--   [uniq](../../../sql-reference/aggregate-functions/reference/uniq.md#agg_function-uniq)
+-   [uniq](/sql-reference/aggregate-functions/reference/uniq)
 -   [uniqCombined64](../../../sql-reference/aggregate-functions/reference/uniqcombined64.md#agg_function-uniqcombined64)
 -   [uniqHLL12](../../../sql-reference/aggregate-functions/reference/uniqhll12.md#agg_function-uniqhll12)
--   [uniqExact](../../../sql-reference/aggregate-functions/reference/uniqexact.md#agg_function-uniqexact)
+-   [uniqExact](/sql-reference/aggregate-functions/reference/uniqexact)

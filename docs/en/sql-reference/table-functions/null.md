@@ -1,11 +1,14 @@
 ---
-toc_priority: 53
-toc_title: null function
+slug: /sql-reference/table-functions/null
+sidebar_position: 140
+sidebar_label: null function
+title: 'null'
+description: "Creates a temporary table of the specified structure with the Null table engine. The function is used for the convenience of test writing and demonstrations."
 ---
 
-# null {#null-function}
+# null Table Function
 
-Creates a temporary table of the specified structure with the [Null](../../engines/table-engines/special/null.md) table engine. According to the `Null`-engine properties, the table data is ignored and the table itself is immediately droped right after the query execution. The function is used for the convenience of test writing and demonstrations.
+Creates a temporary table of the specified structure with the [Null](../../engines/table-engines/special/null.md) table engine. According to the `Null`-engine properties, the table data is ignored and the table itself is immediately dropped right after the query execution. The function is used for the convenience of test writing and demonstrations.
 
 **Syntax**
 
@@ -15,7 +18,7 @@ null('structure')
 
 **Parameter**
 
--   `structure` — A list of columns and column types. [String](../../sql-reference/data-types/string.md).
+- `structure` — A list of columns and column types. [String](../../sql-reference/data-types/string.md).
 
 **Returned value**
 
@@ -38,6 +41,4 @@ DROP TABLE IF EXISTS t;
 
 See also:
 
--   [Null table engine](../../engines/table-engines/special/null.md)
-
-[Original article](https://clickhouse.com/docs/en/sql-reference/table-functions/null/) <!--hide-->
+- [Null table engine](../../engines/table-engines/special/null.md)

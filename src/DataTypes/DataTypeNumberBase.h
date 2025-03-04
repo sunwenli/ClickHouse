@@ -1,14 +1,13 @@
 #pragma once
 
+#include <base/TypeName.h>
+#include <Core/TypeId.h>
 #include <DataTypes/IDataType.h>
 #include <DataTypes/Serializations/SerializationNumber.h>
 
 
 namespace DB
 {
-
-template <typename T>
-class ColumnVector;
 
 /** Implements part of the IDataType interface, common to all numbers and for Date and DateTime.
   */
@@ -20,12 +19,13 @@ class DataTypeNumberBase : public IDataType
 public:
     static constexpr bool is_parametric = false;
     static constexpr auto family_name = TypeName<T>;
+    static constexpr auto type_id = TypeToTypeIndex<T>;
 
     using FieldType = T;
     using ColumnType = ColumnVector<T>;
 
     const char * getFamilyName() const override { return TypeName<T>.data(); }
-    TypeIndex getTypeId() const override { return TypeId<T>; }
+    TypeIndex getTypeId() const override { return TypeToTypeIndex<T>; }
 
     Field getDefault() const override;
 
@@ -68,6 +68,7 @@ extern template class DataTypeNumberBase<Int32>;
 extern template class DataTypeNumberBase<Int64>;
 extern template class DataTypeNumberBase<Int128>;
 extern template class DataTypeNumberBase<Int256>;
+extern template class DataTypeNumberBase<BFloat16>;
 extern template class DataTypeNumberBase<Float32>;
 extern template class DataTypeNumberBase<Float64>;
 

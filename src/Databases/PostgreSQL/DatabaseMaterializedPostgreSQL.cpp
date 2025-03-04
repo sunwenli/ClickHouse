@@ -1,32 +1,49 @@
 #include <Databases/PostgreSQL/DatabaseMaterializedPostgreSQL.h>
+#include <Storages/PostgreSQL/MaterializedPostgreSQLSettings.h>
 
 #if USE_LIBPQXX
 
 #include <Storages/PostgreSQL/StorageMaterializedPostgreSQL.h>
 #include <Databases/PostgreSQL/fetchPostgreSQLTableStructure.h>
 
-#include <base/logger_useful.h>
+#include <Common/CurrentThread.h>
+#include <Common/logger_useful.h>
 #include <Common/Macros.h>
+#include <Common/PoolId.h>
+#include <Common/parseAddress.h>
+#include <Common/parseRemoteDescription.h>
+#include <Core/BackgroundSchedulePool.h>
+#include <Core/Settings.h>
 #include <Core/UUID.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypeArray.h>
 #include <Databases/DatabaseOrdinary.h>
 #include <Databases/DatabaseAtomic.h>
+#include <Databases/DatabaseFactory.h>
+#include <Storages/NamedCollectionsHelpers.h>
 #include <Storages/StoragePostgreSQL.h>
 #include <Storages/AlterCommands.h>
 #include <Interpreters/Context.h>
+#include <Parsers/ASTAlterQuery.h>
 #include <Parsers/ASTCreateQuery.h>
 #include <Parsers/ASTFunction.h>
-#include <Parsers/ParserCreateQuery.h>
 #include <Parsers/parseQuery.h>
 #include <Parsers/queryToString.h>
+#include <Interpreters/evaluateConstantExpression.h>
 #include <Interpreters/InterpreterAlterQuery.h>
 #include <Common/escapeForFileName.h>
-#include <Poco/DirectoryIterator.h>
-#include <Poco/File.h>
 
 namespace DB
 {
+namespace Setting
+{
+    extern const SettingsUInt64 postgresql_connection_attempt_timeout;
+}
+
+namespace MaterializedPostgreSQLSetting
+{
+    extern const MaterializedPostgreSQLSettingsString materialized_postgresql_tables_list;
+}
 
 namespace ErrorCodes
 {
@@ -34,6 +51,8 @@ namespace ErrorCodes
     extern const int QUERY_NOT_ALLOWED;
     extern const int UNKNOWN_TABLE;
     extern const int BAD_ARGUMENTS;
+    extern const int NOT_IMPLEMENTED;
+    extern const int CANNOT_GET_CREATE_TABLE_QUERY;
 }
 
 DatabaseMaterializedPostgreSQL::DatabaseMaterializedPostgreSQL(
@@ -50,16 +69,41 @@ DatabaseMaterializedPostgreSQL::DatabaseMaterializedPostgreSQL(
     , remote_database_name(postgres_database_name)
     , connection_info(connection_info_)
     , settings(std::move(settings_))
+    , startup_task(getContext()->getSchedulePool().createTask("MaterializedPostgreSQLDatabaseStartup", [this]{ tryStartSynchronization(); }))
 {
 }
 
+void DatabaseMaterializedPostgreSQL::tryStartSynchronization()
+{
+    if (shutdown_called)
+        return;
+
+    try
+    {
+        startSynchronization();
+        LOG_INFO(log, "Successfully loaded tables from PostgreSQL and started replication");
+    }
+    catch (...)
+    {
+        LOG_ERROR(log, "Failed to start replication from PostgreSQL, "
+                  "will retry. Error: {}", getCurrentExceptionMessage(true));
+
+        if (!shutdown_called)
+            startup_task->scheduleAfter(5000);
+    }
+}
 
 void DatabaseMaterializedPostgreSQL::startSynchronization()
 {
+    std::lock_guard lock(handler_mutex);
+    if (shutdown_called)
+        return;
+
     replication_handler = std::make_unique<PostgreSQLReplicationHandler>(
-            /* replication_identifier */database_name,
             remote_database_name,
-            database_name,
+            /* table_name */"",
+            TSA_SUPPRESS_WARNING_FOR_READ(database_name),     /// FIXME
+            toString(getUUID()),
             connection_info,
             getContext(),
             is_attach,
@@ -73,12 +117,13 @@ void DatabaseMaterializedPostgreSQL::startSynchronization()
     }
     catch (...)
     {
+        tryLogCurrentException(__PRETTY_FUNCTION__);
         LOG_ERROR(log, "Unable to load replicated tables list");
         throw;
     }
 
     if (tables_to_replicate.empty())
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Got empty list of tables to replicate");
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Got empty list of tables to replicate");
 
     for (const auto & table_name : tables_to_replicate)
     {
@@ -88,12 +133,13 @@ void DatabaseMaterializedPostgreSQL::startSynchronization()
         if (storage)
         {
             /// Nested table was already created and synchronized.
-            storage = StorageMaterializedPostgreSQL::create(storage, getContext(), remote_database_name, table_name);
+            storage = std::make_shared<StorageMaterializedPostgreSQL>(storage, getContext(), remote_database_name, table_name);
         }
         else
         {
             /// Nested table does not exist and will be created by replication thread.
-            storage = StorageMaterializedPostgreSQL::create(StorageID(database_name, table_name), getContext(), remote_database_name, table_name);
+            /// FIXME TSA
+            storage = std::make_shared<StorageMaterializedPostgreSQL>(StorageID(TSA_SUPPRESS_WARNING_FOR_READ(database_name), table_name), getContext(), remote_database_name, table_name);
         }
 
         /// Cache MaterializedPostgreSQL wrapper over nested table.
@@ -104,26 +150,47 @@ void DatabaseMaterializedPostgreSQL::startSynchronization()
     }
 
     LOG_TRACE(log, "Loaded {} tables. Starting synchronization", materialized_tables.size());
-    replication_handler->startup();
+
+    replication_handler->startup(/* delayed */false);
 }
 
 
-void DatabaseMaterializedPostgreSQL::startupTables(ThreadPool & thread_pool, bool force_restore, bool force_attach)
+LoadTaskPtr DatabaseMaterializedPostgreSQL::startupDatabaseAsync(AsyncLoader & async_loader, LoadJobSet startup_after, LoadingStrictnessLevel mode)
 {
-    DatabaseAtomic::startupTables(thread_pool, force_restore, force_attach);
-    try
-    {
-        startSynchronization();
-    }
-    catch (...)
-    {
-        tryLogCurrentException(log, "Cannot load nested database objects for PostgreSQL database engine.");
-
-        if (!force_attach)
-            throw;
-    }
+    auto base = DatabaseAtomic::startupDatabaseAsync(async_loader, std::move(startup_after), mode);
+    auto job = makeLoadJob(
+        base->goals(),
+        TablesLoaderBackgroundStartupPoolId,
+        fmt::format("startup MaterializedPostgreSQL database {}", getDatabaseName()),
+        [this] (AsyncLoader &, const LoadJobPtr &)
+        {
+            startup_task->activateAndSchedule();
+        });
+    std::scoped_lock lock(mutex);
+    return startup_postgresql_database_task = makeLoadTask(async_loader, {job});
 }
 
+void DatabaseMaterializedPostgreSQL::waitDatabaseStarted() const
+{
+    LoadTaskPtr task;
+    {
+        std::scoped_lock lock(mutex);
+        task = startup_postgresql_database_task;
+    }
+    if (task)
+        waitLoad(currentPoolOr(TablesLoaderForegroundPoolId), task);
+}
+
+void DatabaseMaterializedPostgreSQL::stopLoading()
+{
+    LoadTaskPtr stop_startup_postgresql_database;
+    {
+        std::scoped_lock lock(mutex);
+        stop_startup_postgresql_database.swap(startup_postgresql_database_task);
+    }
+    stop_startup_postgresql_database.reset();
+    DatabaseAtomic::stopLoading();
+}
 
 void DatabaseMaterializedPostgreSQL::applySettingsChanges(const SettingsChanges & settings_changes, ContextPtr query_context)
 {
@@ -162,9 +229,9 @@ void DatabaseMaterializedPostgreSQL::applySettingsChanges(const SettingsChanges 
 
 StoragePtr DatabaseMaterializedPostgreSQL::tryGetTable(const String & name, ContextPtr local_context) const
 {
-    /// In otder to define which table access is needed - to MaterializedPostgreSQL table (only in case of SELECT queries) or
-    /// to its nested ReplacingMergeTree table (in all other cases), the context of a query os modified.
-    /// Also if materialzied_tables set is empty - it means all access is done to ReplacingMergeTree tables - it is a case after
+    /// In order to define which table access is needed - to MaterializedPostgreSQL table (only in case of SELECT queries) or
+    /// to its nested ReplacingMergeTree table (in all other cases), the context of a query is modified.
+    /// Also if materialized_tables set is empty - it means all access is done to ReplacingMergeTree tables - it is a case after
     /// replication_handler was shutdown.
     if (local_context->isInternalQuery() || materialized_tables.empty())
     {
@@ -214,9 +281,25 @@ ASTPtr DatabaseMaterializedPostgreSQL::getCreateTableQueryImpl(const String & ta
 
     std::lock_guard lock(handler_mutex);
 
-    auto storage = StorageMaterializedPostgreSQL::create(StorageID(database_name, table_name), getContext(), remote_database_name, table_name);
-    auto ast_storage = replication_handler->getCreateNestedTableQuery(storage.get(), table_name);
-    assert_cast<ASTCreateQuery *>(ast_storage.get())->uuid = UUIDHelpers::generateV4();
+    ASTPtr ast_storage;
+    try
+    {
+        auto storage = std::make_shared<StorageMaterializedPostgreSQL>(StorageID(TSA_SUPPRESS_WARNING_FOR_READ(database_name), table_name), getContext(), remote_database_name, table_name);
+        ast_storage = replication_handler->getCreateNestedTableQuery(storage.get(), table_name);
+        assert_cast<ASTCreateQuery *>(ast_storage.get())->uuid = UUIDHelpers::generateV4();
+    }
+    catch (...)
+    {
+        if (throw_on_error)
+        {
+            throw Exception(ErrorCodes::CANNOT_GET_CREATE_TABLE_QUERY,
+                            "Received error while fetching table structure for table {} from PostgreSQL: {}",
+                            backQuote(table_name), getCurrentExceptionMessage(true));
+        }
+
+        tryLogCurrentException(__PRETTY_FUNCTION__);
+    }
+
     return ast_storage;
 }
 
@@ -229,7 +312,7 @@ ASTPtr DatabaseMaterializedPostgreSQL::createAlterSettingsQuery(const SettingCha
 
     auto command = std::make_shared<ASTAlterCommand>();
     command->type = ASTAlterCommand::Type::MODIFY_DATABASE_SETTING;
-    command->settings_changes = std::move(set);
+    command->settings_changes = command->children.emplace_back(std::move(set)).get();
 
     auto command_list = std::make_shared<ASTExpressionList>();
     command_list->children.push_back(command);
@@ -238,7 +321,7 @@ ASTPtr DatabaseMaterializedPostgreSQL::createAlterSettingsQuery(const SettingCha
     auto * alter = query->as<ASTAlterQuery>();
 
     alter->alter_object = ASTAlterQuery::AlterObjectType::DATABASE;
-    alter->database = database_name;
+    alter->setDatabase(TSA_SUPPRESS_WARNING_FOR_READ(database_name));     /// FIXME
     alter->set(alter->command_list, command_list);
 
     return query;
@@ -256,21 +339,23 @@ void DatabaseMaterializedPostgreSQL::createTable(ContextPtr local_context, const
 
     const auto & create = query->as<ASTCreateQuery>();
     if (!create->attach)
-        throw Exception(ErrorCodes::QUERY_NOT_ALLOWED, "CREATE TABLE is not allowed for database engine {}. Use ATTACH TABLE instead", getEngineName());
+        throw Exception(ErrorCodes::QUERY_NOT_ALLOWED,
+                        "CREATE TABLE is not allowed for database engine {}. Use ATTACH TABLE instead", getEngineName());
 
     /// Create ReplacingMergeTree table.
     auto query_copy = query->clone();
     auto * create_query = assert_cast<ASTCreateQuery *>(query_copy.get());
     create_query->attach = false;
     create_query->attach_short_syntax = false;
+    DatabaseCatalog::instance().addUUIDMapping(create->uuid);
     DatabaseAtomic::createTable(StorageMaterializedPostgreSQL::makeNestedTableContext(local_context), table_name, table, query_copy);
 
     /// Attach MaterializedPostgreSQL table.
-    attachTable(table_name, table, {});
+    attachTable(local_context, table_name, table, {});
 }
 
 
-void DatabaseMaterializedPostgreSQL::attachTable(const String & table_name, const StoragePtr & table, const String & relative_table_path)
+void DatabaseMaterializedPostgreSQL::attachTable(ContextPtr context_, const String & table_name, const StoragePtr & table, const String & relative_table_path)
 {
     /// If there is query context then we need to attach materialized storage.
     /// If there is no query context then we need to attach internal storage from atomic database.
@@ -285,7 +370,7 @@ void DatabaseMaterializedPostgreSQL::attachTable(const String & table_name, cons
 
         try
         {
-            auto tables_to_replicate = settings->materialized_postgresql_tables_list.value;
+            auto tables_to_replicate = (*settings)[MaterializedPostgreSQLSetting::materialized_postgresql_tables_list].value;
             if (tables_to_replicate.empty())
                 tables_to_replicate = getFormattedTablesList();
 
@@ -295,7 +380,7 @@ void DatabaseMaterializedPostgreSQL::attachTable(const String & table_name, cons
 
             InterpreterAlterQuery(alter_query, current_context).execute();
 
-            auto storage = StorageMaterializedPostgreSQL::create(table, getContext(), remote_database_name, table_name);
+            auto storage = std::make_shared<StorageMaterializedPostgreSQL>(table, getContext(), remote_database_name, table_name);
             materialized_tables[table_name] = storage;
 
             std::lock_guard lock(handler_mutex);
@@ -310,12 +395,16 @@ void DatabaseMaterializedPostgreSQL::attachTable(const String & table_name, cons
     }
     else
     {
-        DatabaseAtomic::attachTable(table_name, table, relative_table_path);
+        DatabaseAtomic::attachTable(context_, table_name, table, relative_table_path);
     }
 }
 
+StoragePtr DatabaseMaterializedPostgreSQL::detachTable(ContextPtr, const String &)
+{
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "DETACH TABLE not allowed, use DETACH PERMANENTLY");
+}
 
-StoragePtr DatabaseMaterializedPostgreSQL::detachTable(const String & table_name)
+void DatabaseMaterializedPostgreSQL::detachTablePermanently(ContextPtr, const String & table_name)
 {
     /// If there is query context then we need to detach materialized storage.
     /// If there is no query context then we need to detach internal storage from atomic database.
@@ -365,17 +454,14 @@ StoragePtr DatabaseMaterializedPostgreSQL::detachTable(const String & table_name
         }
 
         materialized_tables.erase(table_name);
-        return nullptr;
-    }
-    else
-    {
-        return DatabaseAtomic::detachTable(table_name);
     }
 }
 
 
 void DatabaseMaterializedPostgreSQL::shutdown()
 {
+    shutdown_called = true;
+    startup_task->deactivate();
     stopReplication();
     DatabaseAtomic::shutdown();
 }
@@ -392,10 +478,10 @@ void DatabaseMaterializedPostgreSQL::stopReplication()
 }
 
 
-void DatabaseMaterializedPostgreSQL::dropTable(ContextPtr local_context, const String & table_name, bool no_delay)
+void DatabaseMaterializedPostgreSQL::dropTable(ContextPtr local_context, const String & table_name, bool sync)
 {
     /// Modify context into nested_context and pass query to Atomic database.
-    DatabaseAtomic::dropTable(StorageMaterializedPostgreSQL::makeNestedTableContext(local_context), table_name, no_delay);
+    DatabaseAtomic::dropTable(StorageMaterializedPostgreSQL::makeNestedTableContext(local_context), table_name, sync);
 }
 
 
@@ -410,12 +496,74 @@ void DatabaseMaterializedPostgreSQL::drop(ContextPtr local_context)
 
 
 DatabaseTablesIteratorPtr DatabaseMaterializedPostgreSQL::getTablesIterator(
-    ContextPtr local_context, const DatabaseOnDisk::FilterByNameFunction & filter_by_table_name) const
+    ContextPtr local_context, const DatabaseOnDisk::FilterByNameFunction & filter_by_table_name, bool skip_not_loaded) const
 {
     /// Modify context into nested_context and pass query to Atomic database.
-    return DatabaseAtomic::getTablesIterator(StorageMaterializedPostgreSQL::makeNestedTableContext(local_context), filter_by_table_name);
+    return DatabaseAtomic::getTablesIterator(StorageMaterializedPostgreSQL::makeNestedTableContext(local_context), filter_by_table_name, skip_not_loaded);
 }
 
+void registerDatabaseMaterializedPostgreSQL(DatabaseFactory & factory)
+{
+    auto create_fn = [](const DatabaseFactory::Arguments & args)
+    {
+        auto * engine_define = args.create_query.storage;
+        const ASTFunction * engine = engine_define->engine;
+        ASTs & engine_args = engine->arguments->children;
+        const String & engine_name = engine_define->engine->name;
+
+        if (!engine->arguments)
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Engine `{}` must have arguments", engine_name);
+
+        StoragePostgreSQL::Configuration configuration;
+
+        if (!engine->arguments)
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Engine `{}` must have arguments", engine_name);
+
+        if (auto named_collection = tryGetNamedCollectionWithOverrides(engine_args, args.context))
+        {
+            configuration = StoragePostgreSQL::processNamedCollectionResult(*named_collection, args.context, false);
+        }
+        else
+        {
+            if (engine_args.size() != 4)
+                throw Exception(ErrorCodes::BAD_ARGUMENTS,
+                                "MaterializedPostgreSQL Database require `host:port`, `database_name`, `username`, `password`.");
+
+            for (auto & engine_arg : engine_args)
+                engine_arg = evaluateConstantExpressionOrIdentifierAsLiteral(engine_arg, args.context);
+
+            auto parsed_host_port = parseAddress(safeGetLiteralValue<String>(engine_args[0], engine_name), 5432);
+
+            configuration.host = parsed_host_port.first;
+            configuration.port = parsed_host_port.second;
+            configuration.database = safeGetLiteralValue<String>(engine_args[1], engine_name);
+            configuration.username = safeGetLiteralValue<String>(engine_args[2], engine_name);
+            configuration.password = safeGetLiteralValue<String>(engine_args[3], engine_name);
+        }
+
+        auto connection_info = postgres::formatConnectionString(
+            configuration.database,
+            configuration.host,
+            configuration.port,
+            configuration.username,
+            configuration.password,
+            args.context->getSettingsRef()[Setting::postgresql_connection_attempt_timeout]);
+
+        auto postgresql_replica_settings = std::make_unique<MaterializedPostgreSQLSettings>();
+        if (engine_define->settings)
+            postgresql_replica_settings->loadFromQuery(*engine_define);
+
+        return std::make_shared<DatabaseMaterializedPostgreSQL>(
+            args.context, args.metadata_path, args.uuid, args.create_query.attach,
+            args.database_name, configuration.database, connection_info,
+            std::move(postgresql_replica_settings));
+    };
+    factory.registerDatabase("MaterializedPostgreSQL", create_fn, {
+        .supports_arguments = true,
+        .supports_settings = true,
+        .supports_table_overrides = true,
+    });
+}
 }
 
 #endif

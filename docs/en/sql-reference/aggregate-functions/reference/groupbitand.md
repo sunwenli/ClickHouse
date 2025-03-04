@@ -1,10 +1,13 @@
 ---
-toc_priority: 125
+slug: /sql-reference/aggregate-functions/reference/groupbitand
+sidebar_position: 147
+title: "groupBitAnd"
+description: "Applies bit-wise `AND` for series of numbers."
 ---
 
-# groupBitAnd {#groupbitand}
+# groupBitAnd
 
-Applies bitwise `AND` for series of numbers.
+Applies bit-wise `AND` for series of numbers.
 
 ``` sql
 groupBitAnd(expr)
@@ -12,11 +15,11 @@ groupBitAnd(expr)
 
 **Arguments**
 
-`expr` – An expression that results in `UInt*` type.
+`expr` – An expression that results in `UInt*` or `Int*` type.
 
 **Return value**
 
-Value of the `UInt*` type.
+Value of the `UInt*` or `Int*` type.
 
 **Example**
 

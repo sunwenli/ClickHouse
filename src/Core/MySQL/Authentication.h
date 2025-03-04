@@ -4,9 +4,7 @@
 #include <Interpreters/Context.h>
 #include <Core/MySQL/PacketEndpoint.h>
 
-#if !defined(ARCADIA_BUILD)
-#    include "config_core.h"
-#endif
+#include "config.h"
 
 #if USE_SSL
 #    include <openssl/pem.h>
@@ -63,7 +61,7 @@ private:
 class Sha256Password : public IPlugin
 {
 public:
-    Sha256Password(RSA & public_key_, RSA & private_key_, Poco::Logger * log_);
+    Sha256Password(RSA & public_key_, RSA & private_key_, LoggerPtr log_);
 
     String getName() override { return "sha256_password"; }
 
@@ -76,7 +74,7 @@ public:
 private:
     RSA & public_key;
     RSA & private_key;
-    Poco::Logger * log;
+    LoggerPtr log;
     String scramble;
 };
 #endif

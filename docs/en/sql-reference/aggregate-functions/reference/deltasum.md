@@ -1,13 +1,17 @@
 ---
-toc_priority: 141
+slug: /sql-reference/aggregate-functions/reference/deltasum
+sidebar_position: 129
+title: "deltaSum"
+description: "Sums the arithmetic difference between consecutive rows."
 ---
 
-# deltaSum {#agg_functions-deltasum}
+# deltaSum
 
 Sums the arithmetic difference between consecutive rows. If the difference is negative, it is ignored.
 
-!!! info "Note"
-    The underlying data must be sorted for this function to work properly. If you would like to use this function in a [materialized view](../../../sql-reference/statements/create/view.md#materialized), you most likely want to use the [deltaSumTimestamp](../../../sql-reference/aggregate-functions/reference/deltasumtimestamp.md#agg_functions-deltasumtimestamp) method instead.
+:::note
+The underlying data must be sorted for this function to work properly. If you would like to use this function in a [materialized view](/sql-reference/statements/create/view#materialized-view), you most likely want to use the [deltaSumTimestamp](/sql-reference/aggregate-functions/reference/deltasumtimestamp) method instead.
+:::
 
 **Syntax**
 
@@ -17,7 +21,7 @@ deltaSum(value)
 
 **Arguments**
 
--   `value` — Input values, must be [Integer](../../data-types/int-uint.md) or [Float](../../data-types/float.md) type.
+- `value` — Input values, must be [Integer](../../data-types/int-uint.md) or [Float](../../data-types/float.md) type.
 
 **Returned value**
 
@@ -69,4 +73,4 @@ Result:
 
 ## See Also {#see-also}
 
--   [runningDifference](../../functions/other-functions.md#other_functions-runningdifference)
+- [runningDifference](/sql-reference/functions/other-functions#runningDifference)

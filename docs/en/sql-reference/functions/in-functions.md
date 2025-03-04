@@ -1,11 +1,11 @@
 ---
-toc_priority: 60
-toc_title: IN Operator
+slug: /sql-reference/functions/in-functions
+sidebar_position: 90
+sidebar_label: IN Operator
 ---
 
-# Functions for Implementing the IN Operator {#functions-for-implementing-the-in-operator}
+# Functions for Implementing the IN Operator
 
-## in, notIn, globalIn, globalNotIn {#in-functions}
+## in, notIn, globalIn, globalNotIn {#in-notin-globalin-globalnotin}
 
 See the section [IN operators](../../sql-reference/operators/in.md#select-in-operators).
-

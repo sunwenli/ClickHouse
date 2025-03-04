@@ -3,10 +3,8 @@
 #include <DataTypes/IDataType.h>
 #include <DataTypes/EnumValues.h>
 #include <Columns/ColumnVector.h>
-#include <Columns/ColumnConst.h>
 #include <Common/HashTable/HashMap.h>
 #include <vector>
-#include <unordered_map>
 
 
 namespace DB
@@ -38,6 +36,7 @@ class DataTypeEnum final : public IDataTypeEnum, public EnumValues<Type>
 public:
     using FieldType = Type;
     using ColumnType = ColumnVector<FieldType>;
+    static constexpr auto type_id = sizeof(FieldType) == 1 ? TypeIndex::Enum8 : TypeIndex::Enum16;
     using typename EnumValues<Type>::Values;
 
     static constexpr bool is_parametric = true;
@@ -52,7 +51,8 @@ public:
     std::string doGetName() const override { return type_name; }
     const char * getFamilyName() const override;
 
-    TypeIndex getTypeId() const override { return sizeof(FieldType) == 1 ? TypeIndex::Enum8 : TypeIndex::Enum16; }
+    TypeIndex getTypeId() const override { return type_id; }
+    TypeIndex getColumnType() const override { return sizeof(FieldType) == 1 ? TypeIndex::Int8 : TypeIndex::Int16; }
 
     FieldType readValue(ReadBuffer & istr) const
     {

@@ -1,21 +1,17 @@
 #pragma once
 
-#include <Formats/FormatFactory.h>
 #include <Processors/Formats/IOutputFormat.h>
-
-#include <string>
-
 
 namespace DB
 {
 
-struct RowOutputFormatParams
-{
-    using WriteCallback = std::function<void(const Columns & columns,size_t row)>;
+class IDataType;
+using DataTypePtr = std::shared_ptr<const IDataType>;
+using DataTypes = std::vector<DataTypePtr>;
 
-    // Callback used to indicate that another row is written.
-    WriteCallback callback;
-};
+class ISerialization;
+using SerializationPtr = std::shared_ptr<const ISerialization>;
+using Serializations = std::vector<SerializationPtr>;
 
 class WriteBuffer;
 
@@ -23,20 +19,24 @@ class WriteBuffer;
   */
 class IRowOutputFormat : public IOutputFormat
 {
-protected:
-    DataTypes types;
-    Serializations serializations;
-    bool first_row = true;
+public:
+    /// Used to work with IRowOutputFormat explicitly.
+    void writeRow(const Columns & columns, size_t row_num)
+    {
+        first_row = false;
+        write(columns, row_num);
+    }
 
+    virtual void writeRowBetweenDelimiter() {}  /// delimiter between rows
+
+protected:
+    IRowOutputFormat(const Block & header, WriteBuffer & out_);
     void consume(Chunk chunk) override;
     void consumeTotals(Chunk chunk) override;
     void consumeExtremes(Chunk chunk) override;
-    void finalize() override;
 
-public:
-    using Params = RowOutputFormatParams;
-
-    IRowOutputFormat(const Block & header, WriteBuffer & out_, const Params & params_);
+    virtual bool supportTotals() const { return false; }
+    virtual bool supportExtremes() const { return false; }
 
     /** Write a row.
       * Default implementation calls methods to write single values and delimiters
@@ -54,37 +54,21 @@ public:
     virtual void writeFieldDelimiter() {}       /// delimiter between values
     virtual void writeRowStartDelimiter() {}    /// delimiter before each row
     virtual void writeRowEndDelimiter() {}      /// delimiter after each row
-    virtual void writeRowBetweenDelimiter() {}  /// delimiter between rows
-    virtual void writePrefix() {}               /// delimiter before resultset
-    virtual void writeSuffix() {}               /// delimiter after resultset
+    void writePrefix() override {}      /// delimiter before resultset
+    void writeSuffix() override {}      /// delimiter after resultset
     virtual void writeBeforeTotals() {}
     virtual void writeAfterTotals() {}
     virtual void writeBeforeExtremes() {}
     virtual void writeAfterExtremes() {}
-    virtual void writeLastSuffix() {}  /// Write something after resultset, totals end extremes.
+    void finalizeImpl() override {}  /// Write something after resultset, totals end extremes.
 
-private:
-    bool prefix_written = false;
-    bool suffix_written = false;
+    bool haveWrittenData() { return !first_row || getRowsReadBefore() != 0; }
 
-    Params params;
+    size_t num_columns;
+    DataTypes types;
+    Serializations serializations;
 
-    void writePrefixIfNot()
-    {
-        if (!prefix_written)
-            writePrefix();
-
-        prefix_written = true;
-    }
-
-    void writeSuffixIfNot()
-    {
-        if (!suffix_written)
-            writeSuffix();
-
-        suffix_written = true;
-    }
-
+    bool first_row = true;
 };
 
 }

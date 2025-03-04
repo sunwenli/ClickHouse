@@ -2,12 +2,14 @@
 
 #include <Parsers/ASTColumnDeclaration.h>
 #include <Parsers/ASTCreateQuery.h>
+#include <Parsers/ASTFunction.h>
+#include <Parsers/ASTTTLElement.h>
+
+#include <Functions/FunctionFactory.h>
+#include <AggregateFunctions/AggregateFunctionFactory.h>
 
 namespace DB
 {
-
-const String & getFunctionCanonicalNameIfAny(const String & name);
-const String & getAggregateFunctionCanonicalNameIfAny(const String & name);
 
 void FunctionNameNormalizer::visit(IAST * ast)
 {
@@ -40,6 +42,14 @@ void FunctionNameNormalizer::visit(IAST * ast)
 
     for (auto & child : ast->children)
         visit(child.get());
+
+    if (auto * ttl_elem = ast->as<ASTTTLElement>())
+    {
+        for (const auto & a : ttl_elem->group_by_key)
+            visit(a.get());
+        for (const auto & a : ttl_elem->group_by_assignments)
+            visit(a.get());
+    }
 }
 
 }

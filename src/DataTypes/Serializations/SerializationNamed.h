@@ -1,32 +1,32 @@
 #pragma once
-
 #include <DataTypes/Serializations/SerializationWrapper.h>
 
 namespace DB
 {
 
+/// Serialization wrapper that acts like nested serialization,
+/// but adds a passed name to the substream path like the
+/// read column was the tuple element with this name.
+/// It's used while reading subcolumns of complex types.
+/// In particular while reading components of named tuples.
 class SerializationNamed final : public SerializationWrapper
 {
 private:
     String name;
-    bool escape_delimiter;
+    SubstreamType substream_type;
 
 public:
-    SerializationNamed(const SerializationPtr & nested_, const String & name_, bool escape_delimiter_ = true)
-        : SerializationWrapper(nested_)
-        , name(name_), escape_delimiter(escape_delimiter_)
-    {
-    }
+    SerializationNamed(const SerializationPtr & nested_, const String & name_, SubstreamType substream_type_);
 
     const String & getElementName() const { return name; }
 
     void enumerateStreams(
-        SubstreamPath & path,
+        EnumerateStreamsSettings & settings,
         const StreamCallback & callback,
-        DataTypePtr type,
-        ColumnPtr column) const override;
+        const SubstreamData & data) const override;
 
     void serializeBinaryBulkStatePrefix(
+        const IColumn & column,
         SerializeBinaryBulkSettings & settings,
         SerializeBinaryBulkStatePtr & state) const override;
 
@@ -36,7 +36,8 @@ public:
 
     void deserializeBinaryBulkStatePrefix(
         DeserializeBinaryBulkSettings & settings,
-        DeserializeBinaryBulkStatePtr & state) const override;
+        DeserializeBinaryBulkStatePtr & state,
+        SubstreamsDeserializeStatesCache * cache) const override;
 
     void serializeBinaryBulkWithMultipleStreams(
         const IColumn & column,
@@ -56,16 +57,18 @@ private:
     struct SubcolumnCreator : public ISubcolumnCreator
     {
         const String name;
-        const bool escape_delimiter;
+        SubstreamType substream_type;
 
-        SubcolumnCreator(const String & name_, bool escape_delimiter_)
-            : name(name_), escape_delimiter(escape_delimiter_) {}
+        SubcolumnCreator(const String & name_, SubstreamType substream_type_)
+            : name(name_), substream_type(substream_type_)
+        {
+        }
 
         DataTypePtr create(const DataTypePtr & prev) const override { return prev; }
         ColumnPtr create(const ColumnPtr & prev) const override { return prev; }
-        SerializationPtr create(const SerializationPtr & prev) const override
+        SerializationPtr create(const SerializationPtr & prev, const DataTypePtr &) const override
         {
-            return std::make_shared<SerializationNamed>(prev, name, escape_delimiter);
+            return std::make_shared<SerializationNamed>(prev, name, substream_type);
         }
     };
 

@@ -1,8 +1,10 @@
-#if defined(__linux__) && defined(__amd64__) && defined(__SSE2__) && !defined(SANITIZER) && defined(NDEBUG) && !defined(SPLIT_SHARED_LIBRARIES)
+#include "remapExecutable.h"
 
-#include <sys/mman.h>
+#if defined(OS_LINUX) && defined(__amd64__) && defined(__SSE2__) && !defined(SANITIZER) && defined(NDEBUG)
+
+#include <cstring>
 #include <unistd.h>
-#include <string.h>
+#include <sys/mman.h>
 #include <sys/syscall.h>
 
 #include <emmintrin.h>
@@ -10,8 +12,6 @@
 #include <Common/getMappedArea.h>
 #include <Common/Exception.h>
 #include <fmt/format.h>
-
-#include "remapExecutable.h"
 
 
 namespace DB
@@ -120,7 +120,7 @@ __attribute__((__noinline__)) void remapToHugeStep1(void * begin, size_t size)
 
     void * scratch = mmap(nullptr, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (MAP_FAILED == scratch)
-        throwFromErrno(fmt::format("Cannot mmap {} bytes", size), ErrorCodes::CANNOT_ALLOCATE_MEMORY);
+        throw ErrnoException(ErrorCodes::CANNOT_ALLOCATE_MEMORY, "Cannot mmap {} bytes", size);
 
     memcpy(scratch, begin, size);
 
@@ -136,10 +136,11 @@ __attribute__((__noinline__)) void remapToHugeStep1(void * begin, size_t size)
 }
 
 
-void remapExecutable()
+size_t remapExecutable()
 {
     auto [begin, size] = getMappedArea(reinterpret_cast<void *>(remapExecutable));
     remapToHugeStep1(begin, size);
+    return size;
 }
 
 }
@@ -149,7 +150,7 @@ void remapExecutable()
 namespace DB
 {
 
-void remapExecutable() {}
+size_t remapExecutable() { return 0; }
 
 }
 

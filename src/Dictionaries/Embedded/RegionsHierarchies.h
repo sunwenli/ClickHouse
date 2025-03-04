@@ -5,10 +5,12 @@
 #include "GeodataProviders/IHierarchiesProvider.h"
 #include "RegionsHierarchy.h"
 
+namespace DB
+{
 
 /** Contains several hierarchies of regions.
   * Used to support several different perspectives on the ownership of regions by countries.
-  * First of all, for the Crimea (Russian and Ukrainian points of view).
+  * First of all, for the Falklands/Malvinas (UK and Argentina points of view).
   */
 class RegionsHierarchies
 {
@@ -17,7 +19,7 @@ private:
     Container data;
 
 public:
-    RegionsHierarchies(IRegionsHierarchiesDataProviderPtr data_provider);
+    explicit RegionsHierarchies(IRegionsHierarchiesDataProviderPtr data_provider);
 
     /** Reloads, if necessary, all hierarchies of regions.
       */
@@ -26,7 +28,6 @@ public:
         for (auto & elem : data)
             elem.second.reload();
     }
-
 
     const RegionsHierarchy & get(const std::string & key) const
     {
@@ -38,3 +39,5 @@ public:
         return it->second;
     }
 };
+
+}

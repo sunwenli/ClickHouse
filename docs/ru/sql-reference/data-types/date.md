@@ -1,11 +1,14 @@
 ---
-toc_priority: 47
-toc_title: Date
+slug: /ru/sql-reference/data-types/date
+sidebar_position: 47
+sidebar_label: Date
 ---
 
 # Date {#data-type-date}
 
 Дата. Хранится в двух байтах в виде (беззнакового) числа дней, прошедших от 1970-01-01. Позволяет хранить значения от чуть больше, чем начала unix-эпохи до верхнего порога, определяющегося константой на этапе компиляции (сейчас - до 2106 года, последний полностью поддерживаемый год - 2105).
+
+Диапазон значений: \[1970-01-01, 2149-06-06\].
 
 Дата хранится без учёта часового пояса.
 
@@ -37,7 +40,5 @@ SELECT * FROM dt;
 **См. также**
 
 -   [Функции для работы с датой и временем](../../sql-reference/functions/date-time-functions.md)
--   [Операторы для работы с датой и временем](../../sql-reference/operators/index.md#operators-datetime)
+-   [Операторы для работы с датой и временем](../../sql-reference/operators#operators-for-working-with-dates-and-times)
 -   [Тип данных `DateTime`](../../sql-reference/data-types/datetime.md)
-
-

@@ -1,3 +1,6 @@
+---
+slug: /ru/operations/system-tables/parts_columns
+---
 # system.parts_columns {#system_tables-parts_columns}
 
 Содержит информацию о кусках данных и столбцах таблиц семейства [MergeTree](../../engines/table-engines/mergetree-family/mergetree.md).
@@ -6,7 +9,7 @@
 
 Столбцы:
 
--   `partition` ([String](../../sql-reference/data-types/string.md)) — имя партиции. Что такое партиция вы можете узнать из описания запроса [ALTER](../../sql-reference/statements/alter/index.md#query_language_queries_alter).
+-   `partition` ([String](../../sql-reference/data-types/string.md)) — имя партиции. Что такое партиция вы можете узнать из описания запроса [ALTER](/sql-reference/statements/alter).
 
     Форматы:
 
@@ -144,4 +147,3 @@ column_marks_bytes:                    48
 **Смотрите также**
 
 -   [Движок MergeTree](../../engines/table-engines/mergetree-family/mergetree.md)
-
